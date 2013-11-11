@@ -143,3 +143,93 @@ unittest
         // static assert(!is(typeof(Instantiate!(templateOr!(testNever, testError), T))));
     }
 }
+
+
+
+
+//THIS DOESNT WORK FOR EVERYTHING
+template templCurry(alias T, alias Arg)
+{
+    template Curried(L ...)
+    {
+	alias Curried = T!(Arg, L);
+    }
+    alias templCurry = Curried;
+}
+
+//Introduce template lambdas as a DSL
+
+
+/**
+ * Creates a chain of templates to be applied one after the other.
+ * This is the equivalent of std.functional.compose but for templates
+ */
+template Compose(F ...)
+    if(F.length > 2)
+{
+    alias Compose = Compose!(F[0 .. $-2], Compose!(F[$-2 .. $]));
+}
+
+template Compose(F ...)
+    if(F.length <= 2)
+{
+    static if(F.length == 0)
+    {
+	alias Compose = I;
+    }
+    else static if(F.length == 1)
+    {
+	alias Compose = F;
+    }
+    else
+    {
+//	pragma(msg, "F_0 = " ~ __traits(identifier, F[0]));
+//	pragma(msg, "F_1 = " ~ __traits(identifier, F[1]));
+//	pragma(msg, "");
+	/+
+	template Apply(T ...)
+	{
+	    alias F_0 = F[0];
+	    alias F_1 = F[1];
+	    alias Apply = F_0!(F_1!T);
+	}
+	alias Compose = Apply;+/
+	alias Compose = Apply!F;
+    }
+}
+
+//should really be called Stage??
+private template Apply(F...)
+{
+    template _Apply(T ...)
+    {
+	alias F_0 = F[0];
+	alias F_1 = F[1];
+	alias _Apply = F_0!(F_1!T);
+    }
+    alias Apply = _Apply;
+}
+
+/**
+ * Compose, but reversed. This means the templates are passed in the same
+ * order they are applied. see std.functional.pipe
+ */
+template Pipe(F ...)
+{
+    alias Pipe = Compose!(Reverse!F);
+}
+
+unittest
+{
+    alias second = Compose!(Front, Tail);
+    static assert(is(second!(short, int, long) == int));
+
+    alias blah = Pipe!(Pack, Unpack);
+    static assert(blah!(1) == Seq!1);
+
+    alias secondP = Pipe!(Tail, Front);
+    static assert(is(secondP!(short, int, long) == int));
+
+    alias Foo = Pipe!(Tail, Tail, Pack);
+    static assert(is(Foo!(1,2,3,4) == Pack!(3,4)));
+}

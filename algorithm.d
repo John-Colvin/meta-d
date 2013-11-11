@@ -454,79 +454,7 @@ unittest
     static assert(is(Tail!(short, int, long) == Seq!(int, long)));
 }
 
-/**
- * Creates a chain of templates to be applied one after the other.
- * This is the equivalent of std.functional.compose but for templates
- */
-template Compose(F ...)
-    if(F.length > 2)
-{
-    alias Compose = Compose!(F[0 .. $-2], Compose!(F[$-2 .. $]));
-}
 
-template Compose(F ...)
-    if(F.length <= 2)
-{
-    static if(F.length == 0)
-    {
-	alias Compose = I;
-    }
-    else static if(F.length == 1)
-    {
-	alias Compose = F;
-    }
-    else
-    {
-//	pragma(msg, "F_0 = " ~ __traits(identifier, F[0]));
-//	pragma(msg, "F_1 = " ~ __traits(identifier, F[1]));
-//	pragma(msg, "");
-	/+
-	template Apply(T ...)
-	{
-	    alias F_0 = F[0];
-	    alias F_1 = F[1];
-	    alias Apply = F_0!(F_1!T);
-	}
-	alias Compose = Apply;+/
-	alias Compose = Apply!F;
-    }
-}
-
-//should really be called Stage??
-private template Apply(F...)
-{
-    template _Apply(T ...)
-    {
-	alias F_0 = F[0];
-	alias F_1 = F[1];
-	alias _Apply = F_0!(F_1!T);
-    }
-    alias Apply = _Apply;
-}
-
-/**
- * Compose, but reversed. This means the templates are passed in the same
- * order they are applied. see std.functional.pipe
- */
-template Pipe(F ...)
-{
-    alias Pipe = Compose!(Reverse!F);
-}
-
-unittest
-{
-    alias second = Compose!(Front, Tail);
-    static assert(is(second!(short, int, long) == int));
-
-    alias blah = Pipe!(Pack, Unpack);
-    static assert(blah!(1) == Seq!1);
-
-    alias secondP = Pipe!(Tail, Front);
-    static assert(is(secondP!(short, int, long) == int));
-
-    alias Foo = Pipe!(Tail, Tail, Pack);
-    static assert(is(Foo!(1,2,3,4) == Pack!(3,4)));
-}
 
 /**
  * Zip for Packs. Results in a Seq containing a Pack for the first elements
@@ -569,7 +497,7 @@ unittest
 //Would be really great to have a half-space cartesian product
 
 /**
- * It's the cartesian product for Packs. Imagine a pack is a range and look at 
+ * The cartesian product for Packs. Imagine a pack is a range and look at 
  * std.algorithm.cartesianProduct
  */
 template CartesianProduct(A, B)
@@ -638,18 +566,6 @@ template CartesianProduct(A)
 template CartesianProduct()
 {
     alias CartesianProduct = I!();
-}
-
-
-template appendPacks(T ...)
-    if(All!(isPack, T))
-{
-    alias appendPacks = Pack!(Map!(Unpack, T));
-}
-
-unittest
-{
-    static assert(is(appendPacks!(Pack!(1,2,3), Pack!(4,5,6)) == Pack!(1,2,3,4,5,6)));
 }
 
 template Appender(T ...)
@@ -727,7 +643,7 @@ unittest
 }
 
 
-//super inefficient?
+//super inefficient...
 template SymmetricDifference(A, B)
     if(isPack!A && isPack!B)
 {
@@ -971,86 +887,15 @@ unittest
 					Pack!(4,Pack!(3, float),2,int,5)));
 }
 
+/**
+ * Find the number of elements in TL that satisfy Pred.
+ */
+enum Count(alias Pred, TL ...) = Filter!(Pred, TL).length;
 
-template MakeArrayType(T)
+//enum CountUntil(alias Pred, H, N) = 
+
+template StartsWith(alias Pred, TL, T)
+    if(isPack!TL && !isPack!T)
 {
-    mixin(`alias MakeArrayType = ` ~ T.stringof ~ "[];");
+    
 }
-
-template MakePointerType(T)
-{
-    mixin(`alias MakePointerType = ` ~ T.stringof ~ "*;");
-}
-
-/+
-template MakeRefType(T)
-{
-    mixin(`alias MakeRefType = ` ~ "ref " ~ __traits(identifier, T) ~ ";");
-}
-+/
-
-template hasType(alias A, T)
-{
-    static if(is(typeof(A) == T))
-    {
-        enum hasType = true;
-    }
-    else
-    {
-	enum hasType = false;
-    }
-}
-
-template hasType(T)
-{
-    template _hasType(alias A)
-    {
-	enum _hasType = hasType!(A, T);
-    }
-    alias hasType = _hasType;
-}
-
-template canBe(alias A, T)
-{
-    static if(is(typeof(A) : T))
-    {
-	enum canBe = true;
-    }
-    else
-    {
-	enum canBe = false;
-    }
-}
-
-template canBe(T)
-{
-    template _canBe(alias A)
-    {
-	enum _canBe = canBe!(A, T);
-    }
-    alias canBe = _canBe;
-}
-
-
-//THIS DOESNT WORK FOR EVERYTHING
-template templCurry(alias T, alias Arg)
-{
-    template Curried(L ...)
-    {
-	alias Curried = T!(Arg, L);
-    }
-    alias templCurry = Curried;
-}
-
-
-template stringOf(alias T)
-{
-    enum stringOf = T.stringof;
-}
-
-template stringOf(T ...)
-if(T.length == 1)
-{
-    enum stringOf = (T[0]).stringof;
-}
-//Introduce template lambdas as a DSL

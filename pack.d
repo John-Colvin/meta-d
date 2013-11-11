@@ -1,6 +1,5 @@
 import algorithm : Equal;
-import seq : Seq;
-
+import seq;
 
 /**
  * Confines a tuple within a template.
@@ -26,6 +25,10 @@ struct Pack(T...)
             enum equals = false;
         }
     }
+
+    //include other operations as template members?
+    //must have free templates as well for functional work.
+    //Which will contain the implementation
 }
 
 unittest
@@ -87,4 +90,16 @@ template packHasLength(size_t len)
 	enum _packHasLength = packHasLength!(len, T);
     }
     alias packHasLength = _packHasLength;
+}
+
+
+template appendPacks(T ...)
+    if(All!(isPack, T))
+{
+    alias appendPacks = Pack!(Map!(Unpack, T));
+}
+
+unittest
+{
+    static assert(is(appendPacks!(Pack!(1,2,3), Pack!(4,5,6)) == Pack!(1,2,3,4,5,6)));
 }
