@@ -75,7 +75,7 @@ private template genericIndexOf(args...)
         alias Alias!(tuple[0]) head;
         alias   tuple[1 .. $]  tail;
 
-	alias isSame = Equal;
+        alias isSame = Equal;
         static if (isSame!(e, head))
         {
             enum index = 0;
@@ -300,38 +300,39 @@ template Reduce(alias F, alias Seed, T ...)
 {
     static if(T.length == 0)
     {
-	alias Reduce = Seed;
+        alias Reduce = Seed;
     }
     else
     {
-	alias Reduce = ReduceImpl!(F, Seq!(Seed, T));
+        alias Reduce = ReduceImpl!(F, Seq!(Seed, T));
     }
 }
 
-private template ReduceImpl(alias F, T...)
-{
-    static if(T.length == 1)
-    {
-	//pragma(msg, T);
-	alias ReduceImpl = T[0];
-    }
-    else
-    {
-	alias ReduceImpl = ReduceImpl!(F, Seq!(F!(T[0], T[1]), T[2 .. $]));
-    }
-}
-
+///
 unittest
 {
     template Add(alias A, alias B)
     {
-	enum Add = A + B;
+        enum Add = A + B;
     }
     static assert(Reduce!(Add, 0, 1, 2, 3) == 6);
 
     static assert(Reduce!(Add, 1) == 1);
 
     static assert(Reduce!(Add, 4, Seq!(3, 2)) == 9);
+}
+
+private template ReduceImpl(alias F, T...)
+{
+    static if(T.length == 1)
+    {
+        //pragma(msg, T);
+        alias ReduceImpl = T[0];
+    }
+    else
+    {
+        alias ReduceImpl = ReduceImpl!(F, Seq!(F!(T[0], T[1]), T[2 .. $]));
+    }
 }
 
 /**
@@ -343,6 +344,7 @@ template SwapFront(A, B)
     alias SwapFront = Seq!(Pack!(B.Unpack[0], A.Unpack[1 .. $]), Pack!(A.Unpack[0], B.Unpack[1 .. $]));
 }
 
+///
 unittest
 {
     static assert(is(SwapFront!(Pack!(1,2,3), Pack!(3,2,1)) == Seq!(Pack!(3,2,3), Pack!(1,2,1))));
@@ -364,36 +366,36 @@ template SplitImpl(
 +/
 
 /**
- * Repeats the given Seq n times
+ * Repeats the given Seq n times.
+ * If only a size is passed, Repeat results in a template that is pre-set to 
+ * repeat it's arguments n times
  */
 template Repeat(size_t n, A ...)
 {
     static if(n == 0 || A.length == 0)
     {
-	alias Repeat = Seq!();
+        alias Repeat = Seq!();
     }
     else
     {
-	alias Repeat = Seq!(A, Repeat!(n-1, A));
+        alias Repeat = Seq!(A, Repeat!(n-1, A));
     }
 }
 
-/**
- * Results in a template that is pre-set to repeat it's arguments n times
- */
-template Repeat(size_t n)
-{
-    template _Repeat(T ...)
-    {
-	alias _Repeat = Repeat!(n, T);
-    }
-    alias Repeat = _Repeat;
-}
-
+///
 unittest
 {
     static assert(Repeat!(5,4) == Seq!(4,4,4,4,4));
     static assert(is(Repeat!(2, int, uint) == Seq!(int, uint, int, uint)));
+}
+
+template Repeat(size_t n)
+{
+    template _Repeat(T ...)
+    {
+        alias _Repeat = Repeat!(n, T);
+    }
+    alias Repeat = _Repeat;
 }
 
 /**
@@ -403,16 +405,16 @@ template Front(A ...)
 {
     static if(A.length == 0)
     {
-	alias Front = Seq!();
+        alias Front = Seq!();
     }
     //Don't trust this....
     else static if(isExpressionTuple!(Seq!(A[0])))
     {
-	enum Front = A[0];
+        enum Front = A[0];
     }
     else
     {
-	alias Front = A[0];
+        alias Front = A[0];
     }
 }
 
@@ -444,7 +446,7 @@ template Tail(A ...)
 {
     static if(A.length == 0)
     {
-	alias Tail = Seq!();
+        alias Tail = Seq!();
     }
     alias Tail = A[1 .. $];
 }
@@ -466,26 +468,26 @@ template Zip(Sets ...)
     
     static if(Sets.length == 0)
     {
-	alias Sets = Seq!();
+        alias Sets = Seq!();
     }
     else
     {
-	alias getFrontPack = Pipe!(Unpack, Front);
-	alias getTailPack = Pipe!(Unpack, Tail, Pack);
-	
-	static if(Any!(isEmptyPack, Sets))
-	{
-	    alias Zip = Repeat!(Sets.length, Pack!());
-	}
-	else static if(Any!(packHasLength!(1), Sets))
-	{
-	    alias Zip = Pack!(Map!(getFrontPack, Sets));
-	}
-	else
-	{
-	    alias Zip = Seq!(Pack!(Map!(getFrontPack, Sets)),
-				   Zip!(Map!(getTailPack, Sets)));
-	}
+        alias getFrontPack = Pipe!(Unpack, Front);
+        alias getTailPack = Pipe!(Unpack, Tail, Pack);
+        
+        static if(Any!(isEmptyPack, Sets))
+        {
+            alias Zip = Repeat!(Sets.length, Pack!());
+        }
+        else static if(Any!(packHasLength!(1), Sets))
+        {
+            alias Zip = Pack!(Map!(getFrontPack, Sets));
+        }
+        else
+        {
+            alias Zip = Seq!(Pack!(Map!(getFrontPack, Sets)),
+                                   Zip!(Map!(getTailPack, Sets)));
+        }
     }
 }
 
@@ -505,11 +507,11 @@ template CartesianProduct(A, B)
 {
     template _Impl(T)
     {
-	alias _Impl = Zip!(A, Pack!(Repeat!(A.Unpack.length, T)));
+        alias _Impl = Zip!(A, Pack!(Repeat!(A.Unpack.length, T)));
     }
     template _Impl(alias T) //alias overload for non-types...
     {
-	alias _Impl = Zip!(A, Pack!(Repeat!(A.Unpack.length, T)));
+        alias _Impl = Zip!(A, Pack!(Repeat!(A.Unpack.length, T)));
     }
     alias CartesianProduct = Map!(_Impl, B.Unpack);
 }
@@ -517,15 +519,15 @@ template CartesianProduct(A, B)
 unittest
 {
     static assert(is(CartesianProduct!(Pack!(short, int, long), Pack!(float, double)) == 
-		      Seq!(Pack!(short, float),  Pack!(int, float),  Pack!(long, float),
-				 Pack!(short, double), Pack!(int, double), Pack!(long, double))));
+                      Seq!(Pack!(short, float),  Pack!(int, float),  Pack!(long, float),
+                                 Pack!(short, double), Pack!(int, double), Pack!(long, double))));
     
     static assert(is(CartesianProduct!(Pack!(1), Pack!(2)) == Seq!(Pack!(1,2))));
     //pragma(msg, CartesianProduct!(Pack!(float, double), Pack!(char, wchar, dchar)));
 
     static assert(is(CartesianProduct!(Pack!(1), Pack!(int)) == Seq!(Pack!(1,int))));
     static assert(is(CartesianProduct!(Pack!(1,2), Pack!(int, double)) ==
-		     Seq!(Pack!(1, int), Pack!(2, int), Pack!(1, double), Pack!(2, double))));
+                     Seq!(Pack!(1, int), Pack!(2, int), Pack!(1, double), Pack!(2, double))));
 }
 
 template CartesianProduct(A ...)
@@ -533,7 +535,7 @@ template CartesianProduct(A ...)
 {
     template denest(T)
     {
-	alias denest = Pack!(T.Unpack[0], T.Unpack[1].Unpack);
+        alias denest = Pack!(T.Unpack[0], T.Unpack[1].Unpack);
     }
     alias CartesianProduct = Map!(denest, CartesianProduct!(A[0], Pack!(CartesianProduct!(A[1 .. $]))));
 }
@@ -541,21 +543,21 @@ template CartesianProduct(A ...)
 unittest
 {
     static assert(is(CartesianProduct!(Pack!(short, int, long), Pack!(float, double), Pack!(char, wchar, dchar)) ==
-		     Seq!(Pack!(short, float,  char),  Pack!(int, float,  char),  Pack!(long, float,  char),
-				Pack!(short, double, char),  Pack!(int, double, char),  Pack!(long, double, char),
-				Pack!(short, float,  wchar), Pack!(int, float,  wchar), Pack!(long, float,  wchar),
-				Pack!(short, double, wchar), Pack!(int, double, wchar), Pack!(long, double, wchar),
-				Pack!(short, float,  dchar), Pack!(int, float,  dchar), Pack!(long, float,  dchar),
-				Pack!(short, double, dchar), Pack!(int, double, dchar), Pack!(long, double, dchar))));
+                     Seq!(Pack!(short, float,  char),  Pack!(int, float,  char),  Pack!(long, float,  char),
+                                Pack!(short, double, char),  Pack!(int, double, char),  Pack!(long, double, char),
+                                Pack!(short, float,  wchar), Pack!(int, float,  wchar), Pack!(long, float,  wchar),
+                                Pack!(short, double, wchar), Pack!(int, double, wchar), Pack!(long, double, wchar),
+                                Pack!(short, float,  dchar), Pack!(int, float,  dchar), Pack!(long, float,  dchar),
+                                Pack!(short, double, dchar), Pack!(int, double, dchar), Pack!(long, double, dchar))));
 
     static assert(is(CartesianProduct!(Pack!(short), Pack!(float), Pack!(char), Pack!(ushort)) ==
-		     Seq!(Pack!(short, float, char, ushort))));
+                     Seq!(Pack!(short, float, char, ushort))));
 
     static assert(is(CartesianProduct!(Pack!(1,2), Pack!(int, float), Pack!(long, double)) ==
-		     Seq!(Pack!(1, int,   long),   Pack!(2, int,   long),
-				Pack!(1, float, long),   Pack!(2, float, long),
-				Pack!(1, int,   double), Pack!(2, int,   double),
-				Pack!(1, float, double), Pack!(2, float, double))));
+                     Seq!(Pack!(1, int,   long),   Pack!(2, int,   long),
+                                Pack!(1, float, long),   Pack!(2, float, long),
+                                Pack!(1, int,   double), Pack!(2, int,   double),
+                                Pack!(1, float, double), Pack!(2, float, double))));
 }
 
 template CartesianProduct(A)
@@ -572,7 +574,7 @@ template Appender(T ...)
 {
     template _Appender(Q ...)
     {
-	alias _Appender = I!(Q,T);
+        alias _Appender = I!(Q,T);
     }
     alias Appender = _Appender;
 }
@@ -581,7 +583,7 @@ template Prepender(T ...)
 {
     template _Prepender(Q ...)
     {
-	alias _Prepender = I!(T, Q);
+        alias _Prepender = I!(T, Q);
     }
     alias Prepender = _Prepender;
 }
@@ -590,11 +592,11 @@ template Contains(T, TL ...)
 {
     static if(staticIndexOf!(T, TL) != -1)
     {
-	enum Contains = true;
+        enum Contains = true;
     }
     else
     {
-	enum Contains = false;
+        enum Contains = false;
     }
 }
 
@@ -603,11 +605,11 @@ template Contains(alias T, TL ...)
 {
     static if(staticIndexOf!(T, TL) != -1)
     {
-	enum Contains = true;
+        enum Contains = true;
     }
     else
     {
-	enum Contains = false;
+        enum Contains = false;
     }
 }
 
@@ -621,10 +623,10 @@ unittest
 template isElementOf(TL ...)
 {
     template _isElementOf(Q...)
-	if(Q.length == 1)
+        if(Q.length == 1)
     {
-	alias T = Q;
-	alias _isElementOf = Contains!(T, TL);
+        alias T = Q;
+        alias _isElementOf = Contains!(T, TL);
     }
     alias isElementOf = _isElementOf;
 }
@@ -685,15 +687,15 @@ template Equal(A, B)
 {
     static if(__traits(compiles, A == B) && A == B)
     {
-	enum Equal = true;
+        enum Equal = true;
     }
     else static if(__traits(compiles, is(A == B)) && is(A == B))
     {
-	enum Equal = true;
+        enum Equal = true;
     }
     else
     {
-	enum Equal = false;
+        enum Equal = false;
     }
 }
 
@@ -701,15 +703,15 @@ template Equal(alias A, B)
 {
     static if(__traits(compiles, A == B) && A == B)
     {
-	enum Equal = true;
+        enum Equal = true;
     }
     else static if(__traits(compiles, is(A == B)) && is(A == B))
     {
-	enum Equal = true;
+        enum Equal = true;
     }
     else
     {
-	enum Equal = false;
+        enum Equal = false;
     }
 }
 
@@ -717,15 +719,15 @@ template Equal(A, alias B)
 {
     static if(__traits(compiles, A == B) && A == B)
     {
-	enum Equal = true;
+        enum Equal = true;
     }
     else static if(__traits(compiles, is(A == B)) && is(A == B))
     {
-	enum Equal = true;
+        enum Equal = true;
     }
     else
     {
-	enum Equal = false;
+        enum Equal = false;
     }
 }
 
@@ -733,15 +735,15 @@ template Equal(alias A, alias B)
 {
     static if(__traits(compiles, A == B) && A == B)
     {
-	enum Equal = true;
+        enum Equal = true;
     }
     else static if(__traits(compiles, is(A == B)) && is(A == B))
     {
-	enum Equal = true;
+        enum Equal = true;
     }
     else
     {
-	enum Equal = false;
+        enum Equal = false;
     }
 }
 +/
@@ -857,11 +859,11 @@ if(isPack!A && isPack!B && A.Unpack.length == B.Unpack.length)
 {
     static if(A.Unpack.length == 0)
     {
-	enum AllEqual = true;
+        enum AllEqual = true;
     }
     else
     {
-	enum AllEqual = !(Filter!(Pipe!(Unpack, templateNot!Equal), Zip!(A, B)).length);
+        enum AllEqual = !(Filter!(Pipe!(Unpack, templateNot!Equal), Zip!(A, B)).length);
     }
 }
 
@@ -882,9 +884,9 @@ template UnorderedEquivalent(A, B)
 unittest
 {
     static assert(UnorderedEquivalent!(Pack!(5,2,4,int,Pack!(3, double)),
-				       Pack!(4,Pack!(3, double),2,int,5)));
+                                       Pack!(4,Pack!(3, double),2,int,5)));
     static assert(!UnorderedEquivalent!(Pack!(5,2,4,int,Pack!(3, double)),
-					Pack!(4,Pack!(3, float),2,int,5)));
+                                        Pack!(4,Pack!(3, float),2,int,5)));
 }
 
 /**
@@ -897,5 +899,22 @@ enum Count(alias Pred, TL ...) = Filter!(Pred, TL).length;
 template StartsWith(alias Pred, TL, T)
     if(isPack!TL && !isPack!T)
 {
-    
+    static if(Pred!(Front!TL, L))
+    {
+        enum StartsWith = true;
+    }
+    else
+    {
+	enum StartsWith = false;
+    }
+}
+
+template StartsWith(alias Pred, TL, T)
+    if(isPack!TL && isPack!T)
+{
+    static if(TL.length == 0)
+    {
+	
+    }
+    static if(Front!
 }

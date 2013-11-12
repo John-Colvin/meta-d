@@ -26,6 +26,8 @@ struct Pack(T...)
         }
     }
 
+    enum length = T.length;
+
     //include other operations as template members?
     //must have free templates as well for functional work.
     //Which will contain the implementation
@@ -102,4 +104,10 @@ template appendPacks(T ...)
 unittest
 {
     static assert(is(appendPacks!(Pack!(1,2,3), Pack!(4,5,6)) == Pack!(1,2,3,4,5,6)));
+}
+
+template Front(T)
+    if(isPack!T)
+{
+    alias Front = Front!(T.Unpack);
 }
