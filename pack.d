@@ -86,6 +86,12 @@ template Empty(T)
     }
 }
 
+unittest
+{
+    static assert(Empty!(Pack!()));
+    static assert(!Empty!(Pack!1));
+}
+
 template hasLength(size_t len, T)
     if(isPack!T)
 {
@@ -97,6 +103,11 @@ template hasLength(size_t len, T)
     {   
 	enum hasLength = false;
     }
+}
+
+unittest
+{
+    static assert(hasLength!(2, Pack!(0,1)));
 }
 
 template hasLength(size_t len)
@@ -143,7 +154,7 @@ template Index(P)
 template Chain(T ...)
     if(All!(isPack, Pack!T))
 {
-    alias Chain = Pack!(Map!(Unpack, Pack!T));
+    alias Chain = Map!(Unpack, Pack!T);
 }
 
 unittest
@@ -205,7 +216,7 @@ template Tail(A)
     {
         alias Tail = Pack!();
     }
-    alias Tail = Pack!(A.Unpack[1 .. $]);
+    alias Tail = Slice!(A, 1, A.length);
 }
 
 unittest
@@ -220,6 +231,7 @@ unittest
 template Retro(TList)
     if(isPack!TList)
 {
+//    pragma(msg, Retro);
     static if (TList.length <= 1)
     {
         alias Retro = TList;
@@ -228,19 +240,12 @@ template Retro(TList)
     {
         alias Retro =
             Chain!(
-                Retro!(TList.Unpack[$/2 ..  $ ]),
-                Retro!(TList.Unpack[ 0  .. $/2]));
+                Retro!(Pack!(TList.Unpack[$/2 ..  $ ])),
+                Retro!(Pack!(TList.Unpack[ 0  .. $/2])));
     }
 }
 
 ///
-unittest
-{
-    alias Types = Seq!(int, long, long, int, float);
-
-    alias TL = Retro!(Types);
-    static assert(is(TL == Seq!(float, int, long, long, int)));
-}
 unittest
 {
     alias Types = Pack!(int, long, long, int, float);

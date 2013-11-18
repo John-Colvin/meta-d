@@ -1,4 +1,5 @@
 import pack;
+import algorithm : Equal, AllEqual;
 
 template Seq(T ...)
 {
@@ -95,8 +96,24 @@ template MakeRefType(T)
 }
 +/
 
-alias Reverse(TList ...) = Retro!(Pack!TList);
+alias Reverse(TList ...) = Retro!(Pack!TList).Unpack;
 
+unittest
+{
+    static assert(is(Reverse!() == Seq!()));
+    static assert((Reverse!(1) == Seq!(1)));
+    static assert(is(Reverse!(int) == Seq!(int)));
+    static assert(AllEqual!(Pack!(Reverse!(1, int)), Pack!(int, 1)));
+    static assert(Equal!(Pack!(Reverse!(Pack, Unpack)), Pack!(Seq!(Unpack, Pack))));
+}
+
+unittest
+{
+    alias Types = Seq!(int, long, long, int, float);
+
+    alias TL = Reverse!(Types);
+    static assert(is(TL == Seq!(float, int, long, long, int)));
+}
 
 /**
  * With the builtin alias declaration, you cannot declare

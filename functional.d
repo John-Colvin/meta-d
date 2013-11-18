@@ -1,3 +1,8 @@
+import seq;
+import pack;
+import algorithm;
+import std.traits;
+
 /**
  * Negates the passed template predicate.
  */
@@ -12,16 +17,14 @@ template templateNot(alias pred)
 ///
 unittest
 {
-    import std.traits;
-
     alias isNoPointer = templateNot!isPointer;
     static assert(!isNoPointer!(int*));
-    static assert(allSatisfy!(isNoPointer, string, char, float));
+    static assert(All!(isNoPointer, Pack!(string, char, float)));
 }
 
 unittest
 {
-    foreach (T; TypeTuple!(int, staticMap, 42))
+    foreach (T; Seq!(int, Map, 42))
     {
         static assert(!Instantiate!(templateNot!testAlways, T));
         static assert(Instantiate!(templateNot!testNever, T));
@@ -70,7 +73,7 @@ unittest
 
 unittest
 {
-    foreach (T; TypeTuple!(int, staticMap, 42))
+    foreach (T; Seq!(int, Map, 42))
     {
         static assert( Instantiate!(templateAnd!(), T));
         static assert( Instantiate!(templateAnd!(testAlways), T));
@@ -126,7 +129,7 @@ unittest
 
 unittest
 {
-    foreach (T; TypeTuple!(int, staticMap, 42))
+    foreach (T; Seq!(int, Map, 42))
     {
         static assert( Instantiate!(templateOr!(testAlways), T));
         static assert( Instantiate!(templateOr!(testAlways, testAlways), T));
@@ -145,6 +148,24 @@ unittest
 }
 
 
+// Used in template predicate unit tests below.
+private version (unittest)
+{
+    template testAlways(T...)
+    {
+        enum testAlways = true;
+    }
+
+    template testNever(T...)
+    {
+        enum testNever = false;
+    }
+
+    template testError(T...)
+    {
+        static assert(false, "Should never be instantiated.");
+    }
+}
 
 
 //THIS DOESNT WORK FOR EVERYTHING
@@ -167,12 +188,14 @@ template templCurry(alias T, alias Arg)
 template Compose(F ...)
     if(F.length > 2)
 {
+//    pragma(msg, Pack!F);
     alias Compose = Compose!(F[0 .. $-2], Compose!(F[$-2 .. $]));
 }
 
 template Compose(F ...)
     if(F.length <= 2)
 {
+//    pragma(msg, Pack!F);
     static if(F.length == 0)
     {
 	alias Compose = I;
@@ -204,12 +227,14 @@ private template Stage(F...)
  */
 template Pipe(F ...)
 {
-    alias Pipe = Compose!(Retro!F);
+    alias Pipe = Compose!(Reverse!F);
 }
 
 unittest
 {
-    alias second = Compose!(Front, Tail);
+    alias second = Compose!(Front, Tail, Pack);
+//    pragma(msg, Pack!second);
+//    pragma(msg, second!(short, int, long));
     static assert(is(second!(short, int, long) == int));
 
     alias blah = Pipe!(Pack, Unpack);
@@ -253,4 +278,18 @@ template ReverseArgs(alias F)
     {
 	alias _ReverseArgs = F!(Reverse!(T));
     }
+}
+
+/*
+* Instantiates the given template with the given list of parameters.
+*
+* Used to work around syntactic limitations of D with regard to instantiating
+* a template from a type tuple (e.g. T[0]!(...) is not valid) or a template
+* returning another template (e.g. Foo!(Bar)!(Baz) is not allowed).
+*/
+// TODO: Consider publicly exposing this, maybe even if only for better
+// understandability of error messages.
+private template Instantiate(alias Template, Params...)
+{
+    alias Template!Params Instantiate;
 }
