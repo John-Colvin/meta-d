@@ -194,20 +194,19 @@ template Compose(F ...)
 	    alias Apply = F_0!(F_1!T);
 	}
 	alias Compose = Apply;+/
-	alias Compose = Apply!F;
+	alias Compose = Stage!F;
     }
 }
 
-//should really be called Stage??
-private template Apply(F...)
+private template Stage(F...)
 {
-    template _Apply(T ...)
+    template _Stage(T ...)
     {
 	alias F_0 = F[0];
 	alias F_1 = F[1];
-	alias _Apply = F_0!(F_1!T);
+	alias _Stage = F_0!(F_1!T);
     }
-    alias Apply = _Apply;
+    alias Stage = _Stage;
 }
 
 /**
@@ -232,4 +231,38 @@ unittest
 
     alias Foo = Pipe!(Tail, Tail, Pack);
     static assert(is(Foo!(1,2,3,4) == Pack!(3,4)));
+}
+
+template Adjoin(F ...)
+    if(F.length >= 2)
+{
+    template _Adjoin(T ...)
+    {
+	alias t = I!t; //strip Seq if length == 1
+	alias _Adjoin = Apply!(t, F);
+    }
+    alias Adjoin = _Adjoin;
+}
+
+
+template Apply(T, Fs ...)
+    if(!isPack!(T) && !Any!(isPack, Fs) && Fs.length > 0)
+{
+    alias f = Fs[0];
+    static if(Fs.length == 1)
+    {
+	alias Apply = f!T;
+    }
+    else
+    {
+	alias Apply = Seq!(f!T, Apply!(T, Fs[1 .. $]));
+    }
+}
+
+template ReverseArgs(alias F)
+{
+    template _ReverseArgs(T ...)
+    {
+	alias _ReverseArgs = F!(Reverse!(T));
+    }
 }

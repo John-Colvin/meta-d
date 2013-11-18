@@ -1,3 +1,5 @@
+import pack;
+
 template Seq(T ...)
 {
     alias Seq = T;
@@ -118,3 +120,65 @@ template MakeRefType(T)
     mixin(`alias MakeRefType = ` ~ "ref " ~ __traits(identifier, T) ~ ";");
 }
 +/
+
+alias Retro(TList ...) = Retro!(Pack!TList);
+
+
+
+/**
+ * Get the first element of a Seq.
+ */
+template Front(A ...)
+{
+    static if(A.length == 0)
+    {
+        alias Front = Seq!();
+    }
+    //Don't trust this....
+    else static if(isExpressionTuple!(Seq!(A[0])))
+    {
+        enum Front = A[0];
+    }
+    else
+    {
+        alias Front = A[0];
+    }
+}
+
+unittest
+{
+    static assert(Front!(1,2,3) == 1);
+    static assert(is(Front!(int, long) == int));
+}
+
+/**
+ * Get the last element of a Seq.
+ */
+template Back(A ...)
+{
+    alias Back = A[$-1];
+}
+
+unittest
+{
+//    static assert(Back!(1,2,3) == 3);
+    static assert(is(Back!(int, long) == long));
+}
+
+/**
+ * Results in the given Seq minus it's head. Returns an empty Seq when given
+ * an input length <= 1
+ */
+template Tail(A ...)
+{
+    static if(A.length == 0)
+    {
+        alias Tail = Seq!();
+    }
+    alias Tail = A[1 .. $];
+}
+
+unittest
+{
+    static assert(is(Tail!(short, int, long) == Seq!(int, long)));
+}
