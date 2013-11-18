@@ -1,4 +1,4 @@
-import algorithm : Equal;
+import algorithm;
 import seq;
 
 /**
@@ -9,7 +9,7 @@ struct Pack(T...)
     alias isSame = Equal;
     alias T Unpack;
 
-    // For convenience
+    // For convenience. NOT GOOD. pass single pack and break
     template equals(U...)
     {
         static if (T.length == U.length)
@@ -61,7 +61,7 @@ unittest
 }
 
 
-//Is it really right to have alias A??
+//Is it really right/necessary to have alias A??
 template Unpack(alias A)
     if(isPack!A)
 {
@@ -73,25 +73,39 @@ unittest
     static assert(Unpack!(Pack!(1,2)) == Seq!(1,2));
 }
 
-template isEmptyPack(T)
+template Empty(T)
     if(isPack!T)
 {
-    enum isEmptyPack = isEmptySeq!(T.Unpack);
-}
-
-template packHasLength(size_t len, T)
-    if(isPack!T)
-{
-    enum packHasLength = seqHasLength!(len, T.Unpack);
-}
-
-template packHasLength(size_t len)
-{
-    template _packHasLength(T)
+    static if(T.length == 0)
     {
-	enum _packHasLength = packHasLength!(len, T);
+	enum Empty = true;
     }
-    alias packHasLength = _packHasLength;
+    else
+    {   
+	enum Empty = false;
+    }
+}
+
+template hasLength(size_t len, T)
+    if(isPack!T)
+{
+    static if(T.length == len)
+    {
+	enum hasLength = true;
+    }
+    else
+    {   
+	enum hasLength = false;
+    }
+}
+
+template hasLength(size_t len)
+{
+    template _hasLength(T)
+    {
+	enum _hasLength = hasLength!(len, T);
+    }
+    alias hasLength = _hasLength;
 }
 
 template Slice(P, size_t i0, size_t i1)
@@ -103,7 +117,7 @@ template Slice(P, size_t i0, size_t i1)
 template Index(P, size_t i)
     if(isPack!P)
 {
-    alias Index = P.Unpack[i];
+    alias Index = Alias!(P.Unpack[i]);
 }
 
 template Index(size_t i)
@@ -127,9 +141,9 @@ template Index(P)
 }
 
 template Chain(T ...)
-    if(All!(isPack, T))
+    if(All!(isPack, Pack!T))
 {
-    alias Chain = Pack!(Map!(Unpack, T));
+    alias Chain = Pack!(Map!(Unpack, Pack!T));
 }
 
 unittest
@@ -138,11 +152,67 @@ unittest
     static assert(is(Chain!(Pack!(1,2,3), Pack!()) == Pack!(1,2,3)));
 }
 
+//what if front is enum?
 template Front(T)
     if(isPack!T)
 {
-    alias Front = Front!(T.Unpack);
+    static if(__traits(compiles, { alias Front = T.Unpack[0]; }))
+    {
+	alias Front = T.Unpack[0];
+    }
+    else
+    {
+	enum Front = T.Unpack[0];
+    }
 }
+
+unittest
+{
+    static assert(Front!(Pack!(1,2,3)) == 1);
+    static assert(is(Front!(Pack!(int, long)) == int));
+}
+
+/**
+ * Get the last element of a Pack.
+ */
+template Back(A)
+    if(isPack!A)
+{
+    static if(__traits(compiles, { alias Back = T.Unpack[0]; }))
+    {
+	alias Back = A.Unpack[$-1];
+    }
+    else
+    {
+        enum Back = A.Unpack[$-1];
+    }
+}
+
+unittest
+{
+    static assert(Back!(Pack!(1,2,3)) == 3);
+    static assert(is(Back!(Pack!(int, long)) == long));
+}
+
+/**
+ * Results in the given Pack minus it's head. Returns an empty Pack when given
+ * an input length <= 1
+ */
+template Tail(A)
+    if(isPack!A)
+{
+    static if(A.length == 0)
+    {
+        alias Tail = Pack!();
+    }
+    alias Tail = Pack!(A.Unpack[1 .. $]);
+}
+
+unittest
+{
+    static assert(is(Tail!(Pack!(short, int, long)) == Pack!(int, long)));
+}
+
 
 /**
  * Reverses a given $(D Pack)
@@ -194,7 +264,7 @@ template Stride(TList, size_t n)
     }
     else
     {
-	alias Stride = Pack!(Front!TList, Stride!(TList.Unpack[n .. $]).Unpack));
+	alias Stride = Pack!(Front!TList, Stride!(TList.Unpack[n .. $]).Unpack);
     }
 }
 
@@ -240,16 +310,26 @@ template DropBack(P, size_t n)
  * If only a size is passed, Repeat results in a template that is pre-set to 
  * repeat it's arguments n times
  */
-//Gonna need alias overloads for this...
-template Repeat(A, size_t n)
+template Repeat(alias A, size_t n)
 {
-    static if(n == 0 || A.length == 0)
+    static if(n == 0)
     {
         alias Repeat = Pack!();
     }
     else
     {
-        alias Repeat = Pack!(A, Repeat!(n-1, A));
+        alias Repeat = Pack!(A, Repeat!(A, n-1).Unpack);
+    }
+}
+template Repeat(A, size_t n)
+{
+    static if(n == 0)
+    {
+        alias Repeat = Pack!();
+    }
+    else
+    {
+        alias Repeat = Pack!(A, Repeat!(A, n-1).Unpack);
     }
 }
 
@@ -297,8 +377,8 @@ private template SequenceImpl(alias F, size_t length, size_t stateLength, State)
     }
     else
     {
-	newState = Chain!(State, Pack!(F!(State[$ - stateLength .. $])));
-	alias SequenceImpl = SequenceImpl!(F, length, stateLength, newState));
+	alias newState = Chain!(State, Pack!(F!(State[$ - stateLength .. $])));
+	alias SequenceImpl = SequenceImpl!(F, length, stateLength, newState);
     }
 }
 
@@ -505,4 +585,34 @@ template Chunks(Source, size_t chunkSize)
     }
 }
 
+template Appender(T)
+{
+    template _Appender(Q)
+	if(isPack!T)
+    {
+        alias _Appender = Pack!(Q.Unpack, T);
+    }
+    alias Appender = _Appender;
+}
 
+template Prepender(T)
+{
+    template _Prepender(Q)
+	if(isPack!T)
+    {
+        alias _Prepender = Pack!(T, Q.Unpack);
+    }
+    alias Prepender = _Prepender;
+}
+
+template Concat(A, B)
+    if(isPack!A && isPack!B)
+{
+    alias Concat = Pack!(A.Unpack, B.Unpack);
+}
+
+template Concat(Packs ...)
+    if(All!(isPack, Pack!Packs) && Packs.length > 2)
+{
+    alias Concat = Concat!(Packs[0], Concat!(Packs[1 .. $]));
+}

@@ -183,17 +183,6 @@ template Compose(F ...)
     }
     else
     {
-//	pragma(msg, "F_0 = " ~ __traits(identifier, F[0]));
-//	pragma(msg, "F_1 = " ~ __traits(identifier, F[1]));
-//	pragma(msg, "");
-	/+
-	template Apply(T ...)
-	{
-	    alias F_0 = F[0];
-	    alias F_1 = F[1];
-	    alias Apply = F_0!(F_1!T);
-	}
-	alias Compose = Apply;+/
 	alias Compose = Stage!F;
     }
 }
@@ -215,7 +204,7 @@ private template Stage(F...)
  */
 template Pipe(F ...)
 {
-    alias Pipe = Compose!(Reverse!F);
+    alias Pipe = Compose!(Retro!F);
 }
 
 unittest
@@ -238,15 +227,14 @@ template Adjoin(F ...)
 {
     template _Adjoin(T ...)
     {
-	alias t = I!t; //strip Seq if length == 1
+	alias t = I!T; //strip Seq if length == 1
 	alias _Adjoin = Apply!(t, F);
     }
     alias Adjoin = _Adjoin;
 }
 
-
 template Apply(T, Fs ...)
-    if(!isPack!(T) && !Any!(isPack, Fs) && Fs.length > 0)
+    if(Fs.length > 0)
 {
     alias f = Fs[0];
     static if(Fs.length == 1)

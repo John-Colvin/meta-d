@@ -17,32 +17,6 @@ template I(A ...)
     }
 }
 
-template isEmptySeq(T ...)
-{
-    enum isEmptySeq = seqHasLength!(0, T);
-}
-
-template seqHasLength(size_t len, T ...)
-{
-    static if(T.length == len)
-    {
-	enum seqHasLength = true;
-    }
-    else
-    {
-	enum seqHasLength = false;
-    }
-}
-
-template seqHasLength(size_t len)
-{
-    template _seqHasLength(T)
-    {
-	enum _seqHasLength = seqHasLength!(len, T);
-    }
-    alias seqHasLength = _seqHasLength;
-}
-
 
 //These don't belong here:
 //  Where should they go? std.meta.typeops?
@@ -121,64 +95,35 @@ template MakeRefType(T)
 }
 +/
 
-alias Retro(TList ...) = Retro!(Pack!TList);
-
+alias Reverse(TList ...) = Retro!(Pack!TList);
 
 
 /**
- * Get the first element of a Seq.
+ * With the builtin alias declaration, you cannot declare
+ * aliases of, for example, literal values. You can alias anything
+ * including literal values via this template.
  */
-template Front(A ...)
+// symbols and literal values
+template Alias(alias a)
 {
-    static if(A.length == 0)
-    {
-        alias Front = Seq!();
-    }
-    //Don't trust this....
-    else static if(isExpressionTuple!(Seq!(A[0])))
-    {
-        enum Front = A[0];
-    }
+    static if (__traits(compiles, { alias x = a; }))
+        alias Alias = a;
+    else static if (__traits(compiles, { enum x = a; }))
+        enum Alias = a;
     else
-    {
-        alias Front = A[0];
-    }
+        static assert(0, "Cannot alias " ~ a.stringof);
+}
+// types and tuples
+template Alias(a...)
+{
+    alias Alias = a;
 }
 
 unittest
 {
-    static assert(Front!(1,2,3) == 1);
-    static assert(is(Front!(int, long) == int));
-}
-
-/**
- * Get the last element of a Seq.
- */
-template Back(A ...)
-{
-    alias Back = A[$-1];
-}
-
-unittest
-{
-//    static assert(Back!(1,2,3) == 3);
-    static assert(is(Back!(int, long) == long));
-}
-
-/**
- * Results in the given Seq minus it's head. Returns an empty Seq when given
- * an input length <= 1
- */
-template Tail(A ...)
-{
-    static if(A.length == 0)
-    {
-        alias Tail = Seq!();
-    }
-    alias Tail = A[1 .. $];
-}
-
-unittest
-{
-    static assert(is(Tail!(short, int, long) == Seq!(int, long)));
+    enum abc = 1;
+    static assert(__traits(compiles, { alias a = Alias!(123); }));
+    static assert(__traits(compiles, { alias a = Alias!(abc); }));
+    static assert(__traits(compiles, { alias a = Alias!(int); }));
+    static assert(__traits(compiles, { alias a = Alias!(1,abc,int); }));
 }
