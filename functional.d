@@ -4,6 +4,27 @@ import algorithm;
 import std.traits;
 
 /**
+ * Applies the binary op to the passed parameters
+ */
+template templateBinaryOp(string op)
+{
+    template _templateBinaryOp(alias A, alias B)
+    {
+	mixin("enum _templateBinaryOp = A " ~ op ~ " B;");
+    }
+    alias templateBinaryOp = _templateBinaryOp;
+}
+
+template templateUnaryOp(string op)
+{
+    template _templateUnaryOp(alias A)
+    {
+	mixin("enum _templateUnaryOp = " ~ op ~ "A;");
+    }
+    alias templateUnaryOp = _templateUnaryOp;
+}
+
+/**
  * Negates the passed template predicate.
  */
 template templateNot(alias pred)
@@ -240,10 +261,10 @@ unittest
     alias blah = Pipe!(Pack, Unpack);
     static assert(blah!(1) == Seq!1);
 
-    alias secondP = Pipe!(Tail, Front);
+    alias secondP = Pipe!(Pack, Tail, Front);
     static assert(is(secondP!(short, int, long) == int));
 
-    alias Foo = Pipe!(Tail, Tail, Pack);
+    alias Foo = Pipe!(Pack, Tail, Tail);
     static assert(is(Foo!(1,2,3,4) == Pack!(3,4)));
 }
 
@@ -293,3 +314,28 @@ private template Instantiate(alias Template, Params...)
 {
     alias Template!Params Instantiate;
 }
+
+
+template Select(alias Pred, T ...)
+    if(!hasType!(Pred, bool) && T.length == 2)
+{
+    static if(Pred!(T[0], T[1]))
+    {
+	alias Select = Alias!(T[0]);
+    }
+    else
+    {
+	alias Select = Alias!(T[1]);
+    }
+}
+
+template Select(alias Pred)
+{
+    template _Select(T ...)
+	if(T.length == 2)
+    {
+	alias _Select = Select!(Pred, T);
+    }
+    alias Select = _Select;
+}
+

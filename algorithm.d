@@ -16,7 +16,7 @@ template IndexOf(T, TList)
 
 /// Ditto
 template IndexOf(alias T, TList)
-    if(isPack!TList)
+    if(isPack!TList && !__traits(compiles, expectType!T)) //break any ambiguity)
 {
     enum IndexOf = genericIndexOf!(T, TList.Unpack).index;
 }
@@ -390,43 +390,6 @@ template Until(alias F, TL)
 }
 
 
-
-/**
- * Zip for Packs. Results in a Seq containing a Pack for the first elements
- * of the passed Packs, a Pack for the second elements etc.
- */
-template Zip(Sets ...)
-    if(SeqAll!(isPack, Sets))
-{
-    static if(Sets.length == 0)
-    {
-        alias Zip = Pack!();
-    }
-    else
-    {        
-        static if(SeqAny!(Empty, Sets))
-        {
-            alias Zip = Repeat!(Sets.length, Pack!());
-        }
-        else static if(SeqAny!(hasLength!(1), Sets))
-        {
-            alias Zip = Pack!(Map!(Front, Pack!Sets));
-        }
-        else
-        {
-            alias Zip = Pack!(Map!(Front, Pack!Sets),
-			      Zip!(Map!(Tail, Pack!Sets).Unpack).Unpack);
-        }
-    }
-}
-
-unittest
-{
-    //SHOULD TEST EMPTY PACK CASE
-
-    static assert(is(Zip!(Pack!(short, int, long), Pack!(2,4,8)) == Pack!(Pack!(short, 2), Pack!(int, 4), Pack!(long, 8))));
-}
-
 //Would be really great to have a half-space cartesian product
 
 /**
@@ -502,9 +465,9 @@ template CartesianProduct()
 }
 
 //Need to translate
-template Contains(T, TL ...)
+template Contains(T, TL)
 {
-    static if(IndexOf!(T, Pack!TL) != -1)
+    static if(IndexOf!(T, TL) != -1)
     {
         enum Contains = true;
     }
@@ -515,9 +478,10 @@ template Contains(T, TL ...)
 }
 
 //alias overload
-template Contains(alias T, TL ...)
+template Contains(alias T, TL)
+    if(!__traits(compiles, expectType!T)) //break any ambiguity
 {
-    static if(IndexOf!(T, Pack!TL) != -1)
+    static if(IndexOf!(T, TL) != -1)
     {
         enum Contains = true;
     }
@@ -529,14 +493,15 @@ template Contains(alias T, TL ...)
 
 unittest
 {
-    static assert(Contains!(int, Seq!(long, 3, int, float)));
-    static assert(Contains!(3, Seq!(1,2,3,4,5)));
-    static assert(!Contains!(long, Seq!(4,3,2,1)));
+    static assert(Contains!(int, Pack!(long, 3, int, float)));
+    static assert(Contains!(3, Pack!(1,2,3,4,5)));
+    static assert(!Contains!(long, Pack!(4,3,2,1)));
 }
 
-template isElementOf(TL ...)
+template isElementOf(TL)
+    if(isPack!TL)
 {
-    template _isElementOf(Q...)
+    template _isElementOf(Q ...)
         if(Q.length == 1)
     {
         alias T = Q;
@@ -548,7 +513,7 @@ template isElementOf(TL ...)
 template Difference(A, B)
     if(isPack!A && isPack!B)
 {
-    alias Difference = Filter!(templateNot!(isElementOf!(B.Unpack)), A);
+    alias Difference = Filter!(templateNot!(isElementOf!(B)), A);
 }
 
 unittest
@@ -563,26 +528,26 @@ unittest
 template SymmetricDifference(A, B)
     if(isPack!A && isPack!B)
 {
-    alias SymmetricDifference = Seq!(Difference!(A,B), Difference!(B,A));
+    alias SymmetricDifference = Concat!(Difference!(A,B), Difference!(B,A));
 }
 
 unittest
 {
     alias a = Pack!(1, 2, 4, int , 7, 9);
     alias b = Pack!(0, 1, 2, 4, 7, 8);
-    static assert(UnorderedEquivalent!(Pack!(SymmetricDifference!(a,b)), Pack!(0, int, 8, 9)));
+    static assert(UnorderedEquivalent!(SymmetricDifference!(a,b), Pack!(0, int, 8, 9)));
 }
 
 template Intersection(TL ...)
 if(TL.length > 2 && SeqAll!(isPack, TL))
 {
-    alias Intersection = Intersection!(TL[0], Pack!(Intersection!(TL[1 .. $])));
+    alias Intersection = Intersection!(TL[0], Intersection!(TL[1 .. $]));
 }
 
 template Intersection(A, B)
 if(isPack!A, isPack!B)
 {
-    alias Intersection = Filter!(isElementOf!(A.Unpack), B);
+    alias Intersection = Filter!(isElementOf!(A), B);
 }
 
 unittest
@@ -695,8 +660,9 @@ private template isSame(ab...)
         enum isSame = __traits(isSame, ab[0], ab[1]);
     }
 }
-private template expectType(T) {}
-private template expectBool(bool b) {}
+package template expectType(T) {}
+package template expectBool(bool b) {}
+package template expectExpr(alias A){}
 
 //Undecided on name yet
 alias Equal = isSame;
@@ -777,7 +743,7 @@ template AllEqual(A, B)
 
 unittest
 {
-    static assert(AllEqual!(Pack!(), Pack!()));
+//    static assert(AllEqual!(Pack!(), Pack!()));  //Maybe???
     static assert(AllEqual!(Pack!(1,2,int), Pack!(1,2,int)));
     static assert(!AllEqual!(Pack!(1,float,int), Pack!(1,2,int)));
     static assert(!AllEqual!(Pack!(1,3,int), Pack!(1,2,float)));
@@ -805,14 +771,13 @@ template Count(alias Pred, TL)
 {
     enum Count = Filter!(Pred, TL).length;
 }
-enum Count(alias Pred, TL ...) = Count!(Pred, Pack!TL);
 
 //enum CountUntil(alias Pred, H, N) = 
 
 template StartsWith(alias Pred, TL, T)
     if(isPack!TL && !isPack!T)
 {
-    static if(Pred!(Front!TL, L))
+    static if(Pred!(Front!TL, T))
     {
         enum StartsWith = true;
     }
@@ -825,7 +790,7 @@ template StartsWith(alias Pred, TL, T)
 template StartsWith(alias Pred, TL, alias T)
     if(isPack!TL && !isPack!T)
 {
-    static if(Pred!(Front!TL, L))
+    static if(Pred!(Front!TL, T))
     {
         enum StartsWith = true;
     }
@@ -844,8 +809,15 @@ template StartsWith(alias Pred, TL, T)
     }
     else
     {
-	enum StartsWith = StartsWith!(Pred, TL, Front!T) &&
-	    StartsWith!(Pred, Tail!TL, Tail!T);
+	static if(T.length == 1)
+	{
+	    enum StartsWith = StartsWith!(Pred, TL, Front!T);
+	}
+	else
+	{
+	    enum StartsWith = StartsWith!(Pred, TL, Front!T) &&
+		StartsWith!(Pred, Tail!TL, Tail!T);
+	}
     }
 }
 
@@ -855,6 +827,12 @@ template StartsWith(TL, T)
     enum StartsWith = StartsWith!(Equal, TL, T);
 }
 
+template StartsWith(TL, alias T)
+    if(isPack!TL && !__traits(compiles, expectType!T))
+{
+    enum StartsWith = StartsWith!(Equal, TL, T); 
+}
+
 unittest
 {
     static assert(StartsWith!(Pack!(1,2,3,4), Pack!(1,2)));
@@ -862,4 +840,46 @@ unittest
     static assert(StartsWith!(Pack!(1,2,3,4), 1));
 
     static assert(!StartsWith!(Pack!(34,54,65), 54));
+}
+
+template Min(alias A, alias B)
+{
+    static if(A <= B)
+    {
+	alias Min = A;
+    }
+    else
+    {
+	alias Min = B;
+    }
+}
+
+template Min(P)
+    if(isPack!P)
+{
+    alias Min = Reduce!(Min, Front!P, Tail!P);
+}
+
+template Max(alias A, alias B)
+{
+    static if(A >= B)
+    {
+	alias Max = A;
+    }
+    else
+    {
+	alias Max = B;
+    }
+}
+
+template Max(P)
+    if(isPack!P)
+{
+    alias Max = Reduce!(Max, Front!P, Tail!P);
+}
+
+//Inefficient. Should be 1-pass
+template MinPos(alias Pred, P)
+{
+    alias MinPos = IndexOf!(Reduce!(Select!Pred, Front!P, Tail!P), P);
 }
