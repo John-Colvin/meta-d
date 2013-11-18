@@ -1,3 +1,29 @@
+import seq;
+import pack;
+import algorithm;
+import std.traits;
+
+/**
+ * Applies the binary op to the passed parameters
+ */
+template templateBinaryOp(string op)
+{
+    template _templateBinaryOp(alias A, alias B)
+    {
+	mixin("enum _templateBinaryOp = A " ~ op ~ " B;");
+    }
+    alias templateBinaryOp = _templateBinaryOp;
+}
+
+template templateUnaryOp(string op)
+{
+    template _templateUnaryOp(alias A)
+    {
+	mixin("enum _templateUnaryOp = " ~ op ~ "A;");
+    }
+    alias templateUnaryOp = _templateUnaryOp;
+}
+
 /**
  * Negates the passed template predicate.
  */
@@ -12,16 +38,14 @@ template templateNot(alias pred)
 ///
 unittest
 {
-    import std.traits;
-
     alias isNoPointer = templateNot!isPointer;
     static assert(!isNoPointer!(int*));
-    static assert(allSatisfy!(isNoPointer, string, char, float));
+    static assert(All!(isNoPointer, Pack!(string, char, float)));
 }
 
 unittest
 {
-    foreach (T; TypeTuple!(int, staticMap, 42))
+    foreach (T; Seq!(int, Map, 42))
     {
         static assert(!Instantiate!(templateNot!testAlways, T));
         static assert(Instantiate!(templateNot!testNever, T));
@@ -70,7 +94,7 @@ unittest
 
 unittest
 {
-    foreach (T; TypeTuple!(int, staticMap, 42))
+    foreach (T; Seq!(int, Map, 42))
     {
         static assert( Instantiate!(templateAnd!(), T));
         static assert( Instantiate!(templateAnd!(testAlways), T));
@@ -126,7 +150,7 @@ unittest
 
 unittest
 {
-    foreach (T; TypeTuple!(int, staticMap, 42))
+    foreach (T; Seq!(int, Map, 42))
     {
         static assert( Instantiate!(templateOr!(testAlways), T));
         static assert( Instantiate!(templateOr!(testAlways, testAlways), T));
@@ -145,6 +169,24 @@ unittest
 }
 
 
+// Used in template predicate unit tests below.
+private version (unittest)
+{
+    template testAlways(T...)
+    {
+        enum testAlways = true;
+    }
+
+    template testNever(T...)
+    {
+        enum testNever = false;
+    }
+
+    template testError(T...)
+    {
+        static assert(false, "Should never be instantiated.");
+    }
+}
 
 
 //THIS DOESNT WORK FOR EVERYTHING
@@ -167,12 +209,14 @@ template templCurry(alias T, alias Arg)
 template Compose(F ...)
     if(F.length > 2)
 {
+//    pragma(msg, Pack!F);
     alias Compose = Compose!(F[0 .. $-2], Compose!(F[$-2 .. $]));
 }
 
 template Compose(F ...)
     if(F.length <= 2)
 {
+//    pragma(msg, Pack!F);
     static if(F.length == 0)
     {
 	alias Compose = I;
@@ -183,31 +227,19 @@ template Compose(F ...)
     }
     else
     {
-//	pragma(msg, "F_0 = " ~ __traits(identifier, F[0]));
-//	pragma(msg, "F_1 = " ~ __traits(identifier, F[1]));
-//	pragma(msg, "");
-	/+
-	template Apply(T ...)
-	{
-	    alias F_0 = F[0];
-	    alias F_1 = F[1];
-	    alias Apply = F_0!(F_1!T);
-	}
-	alias Compose = Apply;+/
-	alias Compose = Apply!F;
+	alias Compose = Stage!F;
     }
 }
 
-//should really be called Stage??
-private template Apply(F...)
+private template Stage(F...)
 {
-    template _Apply(T ...)
+    template _Stage(T ...)
     {
 	alias F_0 = F[0];
 	alias F_1 = F[1];
-	alias _Apply = F_0!(F_1!T);
+	alias _Stage = F_0!(F_1!T);
     }
-    alias Apply = _Apply;
+    alias Stage = _Stage;
 }
 
 /**
@@ -221,15 +253,89 @@ template Pipe(F ...)
 
 unittest
 {
-    alias second = Compose!(Front, Tail);
+    alias second = Compose!(Front, Tail, Pack);
+//    pragma(msg, Pack!second);
+//    pragma(msg, second!(short, int, long));
     static assert(is(second!(short, int, long) == int));
 
     alias blah = Pipe!(Pack, Unpack);
     static assert(blah!(1) == Seq!1);
 
-    alias secondP = Pipe!(Tail, Front);
+    alias secondP = Pipe!(Pack, Tail, Front);
     static assert(is(secondP!(short, int, long) == int));
 
-    alias Foo = Pipe!(Tail, Tail, Pack);
+    alias Foo = Pipe!(Pack, Tail, Tail);
     static assert(is(Foo!(1,2,3,4) == Pack!(3,4)));
 }
+
+template Adjoin(F ...)
+    if(F.length >= 2)
+{
+    template _Adjoin(T ...)
+    {
+	alias t = I!T; //strip Seq if length == 1
+	alias _Adjoin = Apply!(t, F);
+    }
+    alias Adjoin = _Adjoin;
+}
+
+template Apply(T, Fs ...)
+    if(Fs.length > 0)
+{
+    alias f = Fs[0];
+    static if(Fs.length == 1)
+    {
+	alias Apply = f!T;
+    }
+    else
+    {
+	alias Apply = Seq!(f!T, Apply!(T, Fs[1 .. $]));
+    }
+}
+
+template ReverseArgs(alias F)
+{
+    template _ReverseArgs(T ...)
+    {
+	alias _ReverseArgs = F!(Reverse!(T));
+    }
+}
+
+/*
+* Instantiates the given template with the given list of parameters.
+*
+* Used to work around syntactic limitations of D with regard to instantiating
+* a template from a type tuple (e.g. T[0]!(...) is not valid) or a template
+* returning another template (e.g. Foo!(Bar)!(Baz) is not allowed).
+*/
+// TODO: Consider publicly exposing this, maybe even if only for better
+// understandability of error messages.
+private template Instantiate(alias Template, Params...)
+{
+    alias Template!Params Instantiate;
+}
+
+
+template Select(alias Pred, T ...)
+    if(!hasType!(Pred, bool) && T.length == 2)
+{
+    static if(Pred!(T[0], T[1]))
+    {
+	alias Select = Alias!(T[0]);
+    }
+    else
+    {
+	alias Select = Alias!(T[1]);
+    }
+}
+
+template Select(alias Pred)
+{
+    template _Select(T ...)
+	if(T.length == 2)
+    {
+	alias _Select = Select!(Pred, T);
+    }
+    alias Select = _Select;
+}
+

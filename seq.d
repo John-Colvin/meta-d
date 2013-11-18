@@ -1,3 +1,6 @@
+import pack;
+import algorithm : Equal, AllEqual;
+
 template Seq(T ...)
 {
     alias Seq = T;
@@ -13,32 +16,6 @@ template I(A ...)
     {
 	alias I = A;
     }
-}
-
-template isEmptySeq(T ...)
-{
-    enum isEmptySeq = seqHasLength!(0, T);
-}
-
-template seqHasLength(size_t len, T ...)
-{
-    static if(T.length == len)
-    {
-	enum seqHasLength = true;
-    }
-    else
-    {
-	enum seqHasLength = false;
-    }
-}
-
-template seqHasLength(size_t len)
-{
-    template _seqHasLength(T)
-    {
-	enum _seqHasLength = seqHasLength!(len, T);
-    }
-    alias seqHasLength = _seqHasLength;
 }
 
 
@@ -118,3 +95,52 @@ template MakeRefType(T)
     mixin(`alias MakeRefType = ` ~ "ref " ~ __traits(identifier, T) ~ ";");
 }
 +/
+
+alias Reverse(TList ...) = Retro!(Pack!TList).Unpack;
+
+unittest
+{
+    static assert(is(Reverse!() == Seq!()));
+    static assert((Reverse!(1) == Seq!(1)));
+    static assert(is(Reverse!(int) == Seq!(int)));
+    static assert(AllEqual!(Pack!(Reverse!(1, int)), Pack!(int, 1)));
+    static assert(Equal!(Pack!(Reverse!(Pack, Unpack)), Pack!(Seq!(Unpack, Pack))));
+}
+
+unittest
+{
+    alias Types = Seq!(int, long, long, int, float);
+
+    alias TL = Reverse!(Types);
+    static assert(is(TL == Seq!(float, int, long, long, int)));
+}
+
+/**
+ * With the builtin alias declaration, you cannot declare
+ * aliases of, for example, literal values. You can alias anything
+ * including literal values via this template.
+ */
+// symbols and literal values
+template Alias(alias a)
+{
+    static if (__traits(compiles, { alias x = a; }))
+        alias Alias = a;
+    else static if (__traits(compiles, { enum x = a; }))
+        enum Alias = a;
+    else
+        static assert(0, "Cannot alias " ~ a.stringof);
+}
+// types and tuples
+template Alias(a...)
+{
+    alias Alias = a;
+}
+
+unittest
+{
+    enum abc = 1;
+    static assert(__traits(compiles, { alias a = Alias!(123); }));
+    static assert(__traits(compiles, { alias a = Alias!(abc); }));
+    static assert(__traits(compiles, { alias a = Alias!(int); }));
+    static assert(__traits(compiles, { alias a = Alias!(1,abc,int); }));
+}
