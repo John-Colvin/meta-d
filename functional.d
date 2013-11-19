@@ -1,6 +1,8 @@
-import seq;
-import pack;
-import algorithm;
+module meta.functional;
+
+import meta.seq;
+import meta.pack;
+import meta.algorithm;
 import std.traits;
 
 /**
@@ -8,20 +10,18 @@ import std.traits;
  */
 template templateBinaryOp(string op)
 {
-    template _templateBinaryOp(alias A, alias B)
+    template templateBinaryOp(alias A, alias B)
     {
-	mixin("enum _templateBinaryOp = A " ~ op ~ " B;");
+	mixin("enum templateBinaryOp = A " ~ op ~ " B;");
     }
-    alias templateBinaryOp = _templateBinaryOp;
 }
 
 template templateUnaryOp(string op)
 {
-    template _templateUnaryOp(alias A)
+    template templateUnaryOp(alias A)
     {
-	mixin("enum _templateUnaryOp = " ~ op ~ "A;");
+	mixin("enum templateUnaryOp = " ~ op ~ "A;");
     }
-    alias templateUnaryOp = _templateUnaryOp;
 }
 
 /**
@@ -189,17 +189,42 @@ private version (unittest)
 }
 
 
-//THIS DOESNT WORK FOR EVERYTHING
-template templCurry(alias T, alias Arg)
+template PartialApply(alias T, uint argLoc, Arg ...)
+    if(Arg.length == 1)
 {
-    template Curried(L ...)
+    template PartialApply(L ...)
     {
-	alias Curried = T!(Arg, L);
+	mixin("import " ~ moduleName!T ~ ";"); //grab T's module
+	mixin("alias PartialApply = " ~ fullyQualifiedName!T ~ "!(L[0 .. argLoc], Arg, L[argLoc .. $]);");
     }
-    alias templCurry = Curried;
 }
 
-//Introduce template lambdas as a DSL
+version(unittest)
+{
+    template _hasLength(size_t len, T)
+	if(isPack!T)
+    {
+	static if(T.length == len)
+	{
+	    enum _hasLength = true;
+	}
+	else
+	{   
+	    enum _hasLength = false;
+	}
+    }
+    alias _hasLength(size_t len) = PartialApply!(._hasLength, 0, len);
+}
+
+unittest
+{
+    alias hl3 = _hasLength!3;
+    static if(isPack!hl3){} //check for 11553
+    alias P = Pack!(1,3,5);
+    static assert(hl3!P);
+}
+
+//Introduce template lambdas as a DSL?
 
 
 /**
@@ -233,13 +258,12 @@ template Compose(F ...)
 
 private template Stage(F...)
 {
-    template _Stage(T ...)
+    template Stage(T ...)
     {
 	alias F_0 = F[0];
 	alias F_1 = F[1];
-	alias _Stage = F_0!(F_1!T);
+	alias Stage = F_0!(F_1!T);
     }
-    alias Stage = _Stage;
 }
 
 /**
@@ -271,12 +295,11 @@ unittest
 template Adjoin(F ...)
     if(F.length >= 2)
 {
-    template _Adjoin(T ...)
+    template Adjoin(T ...)
     {
 	alias t = I!T; //strip Seq if length == 1
-	alias _Adjoin = Apply!(t, F);
+	alias Adjoin = Apply!(t, F);
     }
-    alias Adjoin = _Adjoin;
 }
 
 template Apply(T, Fs ...)
@@ -295,9 +318,9 @@ template Apply(T, Fs ...)
 
 template ReverseArgs(alias F)
 {
-    template _ReverseArgs(T ...)
+    template ReverseArgs(T ...)
     {
-	alias _ReverseArgs = F!(Reverse!(T));
+	alias ReverseArgs = F!(Reverse!(T));
     }
 }
 
@@ -331,11 +354,10 @@ template Select(alias Pred, T ...)
 
 template Select(alias Pred)
 {
-    template _Select(T ...)
+    template Select(T ...)
 	if(T.length == 2)
     {
-	alias _Select = Select!(Pred, T);
+	alias Select = .Select!(Pred, T);
     }
-    alias Select = _Select;
 }
 

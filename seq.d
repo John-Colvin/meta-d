@@ -1,15 +1,52 @@
-import pack;
-import algorithm : Equal, AllEqual;
+/**
+More advanced functionality is easily
+obtained by wrapping a $(D Seq) in a Pack and making use of the tools in the
+rest of the $(meta) package. Alternatively, $(Seq) is entirely backwards
+compatible with $(D std.typetuple.TypeTuple) and therefore all existing tools
+can be used.
+*/
+module meta.seq;
 
+import meta.pack;
+import meta.algorithm : Equal, AllEqual;
+
+/**
+ * Creates a sequence out of a template argument list of zero or more symbols.
+ */
 template Seq(T ...)
 {
     alias Seq = T;
 }
 
+///
+unittest
+{
+    alias TL = Seq!(int, double);
+
+    int foo(TL td)  // same as int foo(int, double);
+    {
+        return td[0] + cast(int)td[1];
+    }
+}
+
+///
+unittest
+{
+    alias TL = Seq!(int, double);
+
+    alias Types = Seq!(TL, char);
+    static assert(is(Types == Seq!(int, double, char)));
+}
+
+/**
+ * The identity operation on $(D Seqs). If only one symbol is passed then
+ * the result is just that value. Otherwise it is a $(D Seq) of the passed
+ * values.
+ */
 template I(A ...)
 {
     static if(A.length == 1)
-    {
+    {   //can't alias everything...
 	alias I = A[0];
     }
     else
@@ -23,6 +60,9 @@ template I(A ...)
 //  Where should they go? std.meta.typeops?
 //  std.traits?
 
+/**
+ * Template wrapper for $(D is(typeof(A) == T))
+ */
 template hasType(alias A, T)
 {
     static if(is(typeof(A) == T))
@@ -35,15 +75,21 @@ template hasType(alias A, T)
     }
 }
 
+/**
+ * Results in a template that checks for a match with type $(D T)
+ * when passed the single argument $(D A)
+ */
 template hasType(T)
 {
-    template _hasType(alias A)
+    template hasType(alias A)
     {
-	enum _hasType = hasType!(A, T);
+	enum hasType = .hasType!(A, T);
     }
-    alias hasType = _hasType;
 }
 
+/**
+ * Template wrapper for $(D is(typeof(A) : T))
+ */
 template canBe(alias A, T)
 {
     static if(is(typeof(A) : T))
@@ -56,32 +102,43 @@ template canBe(alias A, T)
     }
 }
 
+/**
+ * Results in a template that checks for implicitly convertibility to type
+ * $(D T) when passed the single argument $(D A)
+ */
 template canBe(T)
 {
-    template _canBe(alias A)
+    template canBe(alias A)
     {
-	enum _canBe = canBe!(A, T);
+	enum canBe = canBe!(A, T);
     }
-    alias canBe = _canBe;
 }
 
+/**
+ * Template wrapper for $(D T.stringof)
+ */
 template stringOf(alias T)
 {
     enum stringOf = T.stringof;
 }
-
+/// ditto
 template stringOf(T ...)
 if(T.length == 1)
 {
     enum stringOf = (T[0]).stringof;
 }
 
-
+/**
+ * When passed a type $(D T), results in $(D T[]) 
+ */
 template MakeArrayType(T)
 {
     mixin(`alias MakeArrayType = ` ~ T.stringof ~ "[];");
 }
 
+/**
+ * When passed a type $(D T), results in $(D T*) 
+ */
 template MakePointerType(T)
 {
     mixin(`alias MakePointerType = ` ~ T.stringof ~ "*;");
@@ -96,6 +153,9 @@ template MakeRefType(T)
 }
 +/
 
+/**
+ * Reverses a given $(D Seq)
+ */
 alias Reverse(TList ...) = Retro!(Pack!TList).Unpack;
 
 unittest
@@ -104,9 +164,10 @@ unittest
     static assert((Reverse!(1) == Seq!(1)));
     static assert(is(Reverse!(int) == Seq!(int)));
     static assert(AllEqual!(Pack!(Reverse!(1, int)), Pack!(int, 1)));
-    static assert(Equal!(Pack!(Reverse!(Pack, Unpack)), Pack!(Seq!(Unpack, Pack))));
+    static assert(Equal!(Pack!(Reverse!(Pack, Unpack)),
+			 Pack!(Seq!(Unpack, Pack))));
 }
-
+///
 unittest
 {
     alias Types = Seq!(int, long, long, int, float);

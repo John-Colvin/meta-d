@@ -1,6 +1,8 @@
-import seq;
-import pack;
-import functional;
+module meta.algorithm;
+
+import meta.seq;
+import meta.pack;
+import meta.functional;
 import std.traits;
 
 /**
@@ -16,7 +18,7 @@ template IndexOf(T, TList)
 
 /// Ditto
 template IndexOf(alias T, TList)
-    if(isPack!TList && !__traits(compiles, expectType!T)) //break any ambiguity)
+    if(isPack!TList && !__traits(compiles, expectType!T)) //break any ambiguity
 {
     enum IndexOf = genericIndexOf!(T, TList.Unpack).index;
 }
@@ -37,7 +39,7 @@ unittest
 // [internal]
 private template genericIndexOf(args...)
     if (args.length >= 1)
-{
+    {
     alias Alias!(args[0]) e;
     alias   args[1 .. $]  tuple;
 
@@ -114,7 +116,8 @@ unittest
     static assert(is(TL == Pack!(int, int, int)));
 
     alias Sets = Pack!(Pack!(short, int),Pack!(5,6));
-    static assert(is(Map!(Tail, Sets) == Pack!(Pack!(int), Pack!(6))));
+    alias Res = Sets.Map!(Tail);
+    static assert(is(Res == Pack!(Pack!(int), Pack!(6))));
 }
 
 unittest
@@ -307,7 +310,8 @@ private template ReduceImpl(alias F, T)
 }
 
 /**
- * Swaps the front elements of two Packed Seqs. The result is a Seq of the two Packs after the operation.
+ * Swaps the front elements of two $(D Packs). The result is a Seq of the 
+ * two Packs after the operation.
  */
 template SwapFront(A, B)
     if(isPack!A && isPack!B)
@@ -373,10 +377,10 @@ unittest
     static assert(is(Find!(Pack!(1,2,3,4,5), 6) == Pack!()));
     static assert(is(Find!(Pack!(int, 6, double, 4.6), double) == Pack!(double, 4.6)));
 }
-
+/+
 template Until(TL, alias T)
 {
-
+    
 }
 
 template Until(TL, T)
@@ -388,7 +392,7 @@ template Until(alias F, TL)
 {
 
 }
-
++/
 
 //Would be really great to have a half-space cartesian product
 
@@ -412,6 +416,7 @@ template CartesianProduct(A, B)
 
 unittest
 {
+    //pragma(msg, CartesianProduct!(Pack!(short, int, long), Pack!(float, double)));
     static assert(is(CartesianProduct!(Pack!(short, int, long), Pack!(float, double)) == 
                       Pack!(Pack!(short, float),  Pack!(int, float),  Pack!(long, float),
                                  Pack!(short, double), Pack!(int, double), Pack!(long, double))));
@@ -501,13 +506,12 @@ unittest
 template isElementOf(TL)
     if(isPack!TL)
 {
-    template _isElementOf(Q ...)
+    template isElementOf(Q ...)
         if(Q.length == 1)
     {
         alias T = Q;
-        alias _isElementOf = Contains!(T, TL);
+        alias isElementOf = Contains!(T, TL);
     }
-    alias isElementOf = _isElementOf;
 }
 
 template Difference(A, B)
@@ -857,7 +861,13 @@ template Min(alias A, alias B)
 template Min(P)
     if(isPack!P)
 {
-    alias Min = Reduce!(Min, Front!P, Tail!P);
+    alias Min = Reduce!(.Min, Front!P, Tail!P);
+}
+
+unittest
+{
+    static assert(Pack!(4,5,6,2,4,1,9).Min!() == 1);
+    static assert(Min!(Pack!(4,5,6,2,4,1,9)) == 1);
 }
 
 template Max(alias A, alias B)

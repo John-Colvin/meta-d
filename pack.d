@@ -1,37 +1,76 @@
-import algorithm;
-import seq;
+module meta.pack;
+
+import meta.algorithm;
+import meta.seq;
+import meta.functional;
 import std.traits;
 
+private enum PackStr = q{
 /**
- * Confines a tuple within a template.
+ * Confines a Seq within a struct. The result is simply a type: Access to the
+ * underlying Seq is done using $(D Unpack).
  */
 struct Pack(T...)
 {
-    alias isSame = Equal;
     alias T Unpack;
 
-    enum length = T.length;
+    enum length = T.length; //lowercase for familiarity
 
     @disable this();
 
-    //takes care of all first argument functions
+    /**
+     * UFCS for Packs. Hooray!!
+     * takes care of all first argument functions
+     * only works with functions imported here.
+     */
+    //if there was such a thing as a compilation context default
+    //parameter we could import from / compile using, this would be fixed 
     template opDispatch(string s)
     {
-	template _opDispatch(TL ...)
+	template opDispatch(TL ...)
 	{
-	    mixin("alias _opDispatch = " ~ s ~ "!(typeof(this), TL);");
+	    mixin("alias opDispatch = " ~ s ~ "!(typeof(this), TL);");
 	}
-	alias opDispatch = _opDispatch;
     }
 
     template Map(alias F)
     {
-        alias Map = algorithm.Map!(F, typeof(this)); //Bug to require prefix
+	import meta.algorithm;
+        alias Map = meta.algorithm.Map!(F, typeof(this)); //Bug to require prefix
+    }
+
+    template Filter(alias F)
+    {
+	import meta.algorithm;
+	alias Filter = meta.algorithm.Filter!(F, typeof(this));
     }
 }
+}; //end of PackStr
 
+mixin(PackStr);
+
+/**
+ * A mixin template to inject the definition of Pack in to a scope. Using this
+ * will locally expand dot notation instantiation for Packs to symbols in said
+ * scope.
+ */
+mixin template PackDef()
+{
+    mixin(PackStr);
+}
+
+/**
+ * Results in the length of any compile-time entity that defines the field
+ * length
+ */
 enum Length(P) = P.length;
 
+/**
+ * Check is the passed set of parameters is an instantiation of $(D Pack).
+ * This is a deliberatly permissive template: You can pass it absolutely
+ * anything (that is itself valid) without error, it will simply return false
+ * unless there is a single $(D Pack) argument only.
+ */
 template isPack(TList ...)
 {
     static if(TList.length == 1 &&
@@ -51,20 +90,27 @@ unittest
     static assert(isPack!a);
     alias b = Seq!(int, 1);
     static assert(!isPack!b);
+
+    static assert(!isPack!(isPack));
 }
 
-
+/**
+ * Template accessor for Pack.Unpack
+ */
 template Unpack(A)
     if(A.isPack!())
 {
     alias Unpack = A.Unpack;
 }
-
+///
 unittest
 {
     static assert(Unpack!(Pack!(1,2)) == Seq!(1,2));
 }
 
+/**
+ * Checks if a given Pack is empty
+ */
 template Empty(T)
     if(isPack!T)
 {
@@ -77,13 +123,16 @@ template Empty(T)
 	enum Empty = false;
     }
 }
-
+///
 unittest
 {
     static assert(Empty!(Pack!()));
     static assert(!Empty!(Pack!1));
 }
 
+/**
+ * Checks if the given pack $(D T) has length $(D len)
+ */
 template hasLength(size_t len, T)
     if(isPack!T)
 {
@@ -96,21 +145,29 @@ template hasLength(size_t len, T)
 	enum hasLength = false;
     }
 }
-
+///
 unittest
 {
     static assert(hasLength!(2, Pack!(0,1)));
 }
 
-template hasLength(size_t len)
+
+/**
+ * Returns a single argument $(D T) template that checks for length $(D len)
+ */
+alias hasLength(size_t len) = PartialApply!(.hasLength, 0, len);
+///
+unittest
 {
-    template _hasLength(T)
-    {
-	enum _hasLength = hasLength!(len, T);
-    }
-    alias hasLength = _hasLength;
+    alias hl3 = hasLength!3;
+    alias P = Pack!(1,3,5);
+    static assert(hl3!P);
 }
 
+/**
+ * Returns a slice of the Pack $(D P) from $(D i0) to $(D i1 - 1) inclusive.
+ * $(D P) and $(D i1) are optional. 
+ */
 template Slice(P, size_t i0, size_t i1)
     if(isPack!P)
 {
@@ -178,12 +235,12 @@ template Chain(T ...)
 
 unittest
 {
-    pragma(msg, Chain!(Pack!(1,2,3), Pack!(4,5,6)));
+    //pragma(msg, Chain!(Pack!(1,2,3), Pack!(4,5,6)));
     static assert(is(Chain!(Pack!(1,2,3), Pack!(4,5,6)) == Pack!(1,2,3,4,5,6)));
     static assert(is(Chain!(Pack!(1,2,3), Pack!()) == Pack!(1,2,3)));
 }
 
-//what if front is enum?
+
 template Front(T)
     if(isPack!T)
 {
@@ -297,7 +354,8 @@ template Stride(TList, size_t n)
 unittest
 {
     static assert(is(Stride!(Pack!(1,2,3,4), 2) == Pack!(1,3)));
-    static assert(is(Stride!(Pack!(int, short, 4, 3, 2, 1), 3) == Pack!(int, 3)));
+    static assert(is(Stride!(Pack!(int, short, 4, 3, 2, 1), 3)
+		     == Pack!(int, 3)));
 }
 
 
@@ -400,11 +458,10 @@ unittest
 
 template Repeat(size_t n)
 {
-    template _Repeat(T ...)
+    template Repeat(T ...)
     {
-        alias _Repeat = Repeat!(n, T);
+        alias Repeat = Repeat!(n, T);
     }
-    alias Repeat = _Repeat;
 }
 
 
@@ -424,7 +481,8 @@ template Cycle(P, size_t n)
 ///
 unittest
 {
-    static assert(is(Cycle!(Pack!(int, uint), 2) == Pack!(int, uint, int, uint)));
+    static assert(is(Cycle!(Pack!(int, uint), 2)
+		     == Pack!(int, uint, int, uint)));
 }
 
 
@@ -446,15 +504,16 @@ private template SequenceImpl(alias F, size_t length, size_t stateLength, State)
     }
 }
 
-/++
-This template will generate a Seq of values over a range.
-This is can particularly useful when a static $(D foreach) is desired.
-
-The range starts at $(D begin), and is increment by $(D step) until the value $(D end) has
-been reached. $(D begin) defaults to $(D 0), and $(D step) defaults to $(D 1).
-
-See also $(XREF range,iota).
-+/
+/**
+ * This template will generate a Seq of values over a range.
+ * This is can particularly useful when a static $(D foreach) is desired.
+ *
+ * The range starts at $(D begin), and is increment by $(D step) until the 
+ * value $(D end) has been reached. $(D begin) defaults to $(D 0), and $(D step)
+ * defaults to $(D 1).
+ *
+ *See also $(XREF range,iota).
+*/
 template Iota(alias end)
 {
     alias E = typeof(end);
@@ -502,7 +561,8 @@ private template IotaImpl(E, E begin, E end, E step)
         enum newbeg = begin + step;
         enum mid1 = step + (end - newbeg) / 2;
         enum mid = begin + mid1 - (mid1 % step);
-        alias IotaImpl = Seq!(.IotaImpl!(E, begin, mid, step), .IotaImpl!(E, mid, end, step));
+        alias IotaImpl = Seq!(.IotaImpl!(E, begin, mid, step),
+			      .IotaImpl!(E, mid, end, step));
     }
     else
     {
@@ -642,29 +702,28 @@ template Chunks(Source, size_t chunkSize)
     }
     else
     {
-	alias Chunks = Pack!(Slice!(Source, 0, chunkSize),
-			     Chunks!(Slice!(Source, chunkSize), chunkSize).Unpack);
+	alias Chunks =
+	    Pack!(Slice!(Source, 0, chunkSize),
+		  Chunks!(Slice!(Source, chunkSize), chunkSize).Unpack);
     }
 }
 
 template Appender(T)
 {
-    template _Appender(Q)
+    template Appender(Q)
 	if(isPack!T)
     {
-        alias _Appender = Pack!(Q.Unpack, T);
+        alias Appender = Pack!(Q.Unpack, T);
     }
-    alias Appender = _Appender;
 }
 
 template Prepender(T)
 {
-    template _Prepender(Q)
+    template Prepender(Q)
 	if(isPack!T)
     {
-        alias _Prepender = Pack!(T, Q.Unpack);
+        alias Prepender = Pack!(T, Q.Unpack);
     }
-    alias Prepender = _Prepender;
 }
 
 template Concat(A, B)
@@ -714,5 +773,6 @@ unittest
 {
     static assert(is(Zip!(Pack!(), Pack!()) == Pack!(Pack!(), Pack!())));
 
-    static assert(is(Zip!(Pack!(short, int, long), Pack!(2,4,8)) == Pack!(Pack!(short, 2), Pack!(int, 4), Pack!(long, 8))));
+    static assert(is(Zip!(Pack!(short, int, long), Pack!(2,4,8))
+		     == Pack!(Pack!(short, 2), Pack!(int, 4), Pack!(long, 8))));
 }
