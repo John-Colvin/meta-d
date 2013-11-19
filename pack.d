@@ -10,39 +10,27 @@ struct Pack(T...)
     alias isSame = Equal;
     alias T Unpack;
 
-    // For convenience. NOT GOOD. pass single pack and break
-    template equals(U...)
-    {
-        static if (T.length == U.length)
-        {
-            static if (T.length == 0)
-                enum equals = true;
-            else
-                enum equals = isSame!(T[0], U[0]) &&
-                    Pack!(T[1 .. $]).equals!(U[1 .. $]);
-        }
-        else
-        {
-            enum equals = false;
-        }
-    }
-
     enum length = T.length;
 
     @disable this();
 
-    //include other operations as template members?
-    //must have free templates as well for functional work.
-    //Which will contain the implementation?
+    //takes care of all first argument functions
+    template opDispatch(string s)
+    {
+	template _opDispatch(TL ...)
+	{
+	    mixin("alias _opDispatch = " ~ s ~ "!(typeof(this), TL);");
+	}
+	alias opDispatch = _opDispatch;
+    }
+
+    template Map(alias F)
+    {
+        alias Map = algorithm.Map!(F, typeof(this)); //Bug to require prefix
+    }
 }
 
 enum Length(P) = P.length;
-
-unittest
-{
-    static assert( Pack!(1, int, "abc").equals!(1, int, "abc"));
-    static assert(!Pack!(1, int, "abc").equals!(1, int, "cba"));
-}
 
 template isPack(TList ...)
 {
@@ -67,7 +55,7 @@ unittest
 
 
 template Unpack(A)
-    if(isPack!A)
+    if(A.isPack!())
 {
     alias Unpack = A.Unpack;
 }
@@ -184,11 +172,13 @@ template Index(P)
 template Chain(T ...)
     if(All!(isPack, Pack!T))
 {
-    alias Chain = Map!(Unpack, Pack!T);
+//    alias Chain = Map!(Unpack, Pack!T);
+    alias Chain = Alias!(Pack!T).Map!(Unpack);
 }
 
 unittest
 {
+    pragma(msg, Chain!(Pack!(1,2,3), Pack!(4,5,6)));
     static assert(is(Chain!(Pack!(1,2,3), Pack!(4,5,6)) == Pack!(1,2,3,4,5,6)));
     static assert(is(Chain!(Pack!(1,2,3), Pack!()) == Pack!(1,2,3)));
 }
@@ -653,7 +643,7 @@ template Chunks(Source, size_t chunkSize)
     else
     {
 	alias Chunks = Pack!(Slice!(Source, 0, chunkSize),
-			     Chunks!(Slice!(Source, chunkSize, Source.length), chunkSize).Unpack);
+			     Chunks!(Slice!(Source, chunkSize), chunkSize).Unpack);
     }
 }
 
@@ -722,8 +712,6 @@ template Zip(Sets ...)
 
 unittest
 {
-    //SHOULD TEST EMPTY PACK CASE
-
     static assert(is(Zip!(Pack!(), Pack!()) == Pack!(Pack!(), Pack!())));
 
     static assert(is(Zip!(Pack!(short, int, long), Pack!(2,4,8)) == Pack!(Pack!(short, 2), Pack!(int, 4), Pack!(long, 8))));
