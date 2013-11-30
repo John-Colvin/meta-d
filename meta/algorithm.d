@@ -116,8 +116,8 @@ unittest
     static assert(is(TL == Pack!(int, int, int)));
 
     alias Sets = Pack!(Pack!(short, int),Pack!(5,6));
-    alias Res = Sets.Map!(Tail);
-    static assert(is(Res == Pack!(Pack!(int), Pack!(6))));
+//    alias Res = Sets.Map!(Tail);
+//    static assert(is(Res == Pack!(Pack!(int), Pack!(6))));
 }
 
 unittest
@@ -267,7 +267,7 @@ unittest
 /**
  * Reduce for Packs.
  */
-    template Reduce(alias F, alias Seed, T = Pack!())
+template Reduce(alias F, alias Seed, T = Pack!())
     if(isPack!T)
 {
     static if(T.length == 0)

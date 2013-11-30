@@ -192,10 +192,21 @@ private version (unittest)
 template PartialApply(alias T, uint argLoc, Arg ...)
     if(Arg.length == 1)
 {
+    pragma(msg, "PartialApply " ~ __traits(identifier, T));
+//    pragma(msg, "PartialApply " ~ T.tostring);
+
     template PartialApply(L ...)
-    {
+    {/+
 	mixin("import " ~ moduleName!T ~ ";"); //grab T's module
-	mixin("alias PartialApply = " ~ fullyQualifiedName!T ~ "!(L[0 .. argLoc], Arg, L[argLoc .. $]);");
+	mixin("alias PartialApply = " ~ fullyQualifiedName!T ~ "!(L[0 .. argLoc], Arg, L[argLoc .. $]);");+/
+	
+	pragma(msg, "PartialApply internal " ~ __traits(identifier, T));
+	pragma(msg, "--");
+	pragma(msg, I!(L[0 .. argLoc], Arg, L[argLoc .. $]));
+	pragma(msg, T!(L[0 .. argLoc], Arg, L[argLoc .. $]));
+	pragma(msg, "++");
+	//will this work with templates that aren't imported here?
+	alias PartialApply = T!(L[0 .. argLoc], Arg, L[argLoc .. $]);
     }
 }
 
@@ -360,4 +371,3 @@ template Select(alias Pred)
 	alias Select = .Select!(Pred, T);
     }
 }
-

@@ -5,7 +5,8 @@ import meta.seq;
 import meta.functional;
 import std.traits;
 
-private enum PackStr = q{
+mixin template PackTemplate()
+{
 /**
  * Confines a Seq within a struct. The result is simply a type: Access to the
  * underlying Seq is done using $(D Unpack).
@@ -24,30 +25,52 @@ struct Pack(T...)
      * only works with functions imported here.
      */
     //if there was such a thing as a compilation context default
-    //parameter we could import from / compile using, this would be fixed 
+    //parameter we could import from / compile using, this would be better
     template opDispatch(string s)
-    {
+    {/+
+	//could use partial apply here...
 	template opDispatch(TL ...)
 	{
 	    mixin("alias opDispatch = " ~ s ~ "!(typeof(this), TL);");
-	}
+	}+/
+	mixin("alias opDispatch = PartialApply!(." ~ s ~ ", 0, typeof(this));");
     }
-
+/+
     template Map(alias F)
     {
-	import meta.algorithm;
-        alias Map = meta.algorithm.Map!(F, typeof(this)); //Bug to require prefix
+        alias Map = .Map!(F, typeof(this)); //Bug to require prefix
+    }
++/
+    private alias arg1 = asArg!(1, T);
+    //alias Map(alias F) = asArg!(1).Map!(F);
+    template Map(alias F)
+    {
+	alias Map = arg1.Map!F;
     }
 
     template Filter(alias F)
     {
-	import meta.algorithm;
-	alias Filter = meta.algorithm.Filter!(F, typeof(this));
+	alias Filter = .Filter!(F, typeof(this));
     }
-}
-}; //end of PackStr
 
-mixin(PackStr);
+} //end of Pack struct
+}
+
+struct asArg(size_t argIndex, T ...)
+{
+    pragma(msg, "argIndex instantiated: " ~ argIndex.stringof);
+    template opDispatch(string s)
+    {
+	pragma(msg, "opDispatch " ~ s);
+	mixin("alias blah = ." ~ s ~ ";");
+	pragma(msg, __traits(identifier, blah));
+	mixin("alias opDispatch = PartialApply!(." ~ s ~ ", " ~ argIndex.stringof ~ ", Pack!(T));");
+    }
+    @disable this();
+}
+
+mixin PackTemplate!();
+
 
 /**
  * A mixin template to inject the definition of Pack in to a scope. Using this
@@ -56,8 +79,9 @@ mixin(PackStr);
  */
 mixin template PackDef()
 {
-    mixin(PackStr);
+//    mixin(PackStr!());
 }
+
 
 /**
  * Results in the length of any compile-time entity that defines the field
@@ -235,7 +259,7 @@ template Chain(T ...)
 
 unittest
 {
-    //pragma(msg, Chain!(Pack!(1,2,3), Pack!(4,5,6)));
+    pragma(msg, Chain!(Pack!(1,2,3), Pack!(4,5,6)));
     static assert(is(Chain!(Pack!(1,2,3), Pack!(4,5,6)) == Pack!(1,2,3,4,5,6)));
     static assert(is(Chain!(Pack!(1,2,3), Pack!()) == Pack!(1,2,3)));
 }
