@@ -5,7 +5,13 @@ import meta.seq;
 import meta.functional;
 import std.traits;
 
-mixin template PackTemplate()
+
+/**
+ * A mixin template to inject the definition of Pack in to a scope. Using this
+ * will locally expand dot notation instantiation for Packs to symbols in said
+ * scope.
+ */
+mixin template PackDef()
 {
 /**
  * Confines a Seq within a struct. The result is simply a type: Access to the
@@ -13,11 +19,16 @@ mixin template PackTemplate()
  */
 struct Pack(T...)
 {
-    alias T Unpack;
+    alias Unpack = T;
 
     enum length = T.length; //lowercase for familiarity
 
     @disable this();
+
+    //doesn't really work properly with indexing.
+    //often the indexing never actually happens, unittests break
+    //and pragma msgs show Pack!(blah)[0]
+    alias Unpack this;
 
     /**
      * UFCS for Packs. Hooray!!
@@ -28,58 +39,29 @@ struct Pack(T...)
     //parameter we could import from / compile using, this would be better
     template opDispatch(string s)
     {/+
-	//could use partial apply here...
 	template opDispatch(TL ...)
 	{
 	    mixin("alias opDispatch = " ~ s ~ "!(typeof(this), TL);");
 	}+/
 	mixin("alias opDispatch = PartialApply!(." ~ s ~ ", 0, typeof(this));");
     }
-/+
-    template Map(alias F)
-    {
-        alias Map = .Map!(F, typeof(this)); //Bug to require prefix
-    }
-+/
-    private alias arg1 = asArg!(1, T);
-    //alias Map(alias F) = asArg!(1).Map!(F);
-    template Map(alias F)
-    {
-	alias Map = arg1.Map!F;
-    }
-
-    template Filter(alias F)
-    {
-	alias Filter = .Filter!(F, typeof(this));
-    }
-
 } //end of Pack struct
 }
 
-struct asArg(size_t argIndex, T ...)
-{
-    pragma(msg, "argIndex instantiated: " ~ argIndex.stringof);
-    template opDispatch(string s)
-    {
-	pragma(msg, "opDispatch " ~ s);
-	mixin("alias blah = ." ~ s ~ ";");
-	pragma(msg, __traits(identifier, blah));
-	mixin("alias opDispatch = PartialApply!(." ~ s ~ ", " ~ argIndex.stringof ~ ", Pack!(T));");
-    }
-    @disable this();
-}
-
-mixin PackTemplate!();
-
+//adds Pack to the current scope
+mixin PackDef!();
 
 /**
- * A mixin template to inject the definition of Pack in to a scope. Using this
- * will locally expand dot notation instantiation for Packs to symbols in said
- * scope.
+ * asArg moves it's 
  */
-mixin template PackDef()
+struct asArg(size_t argIndex, T ...)
+    if(T.length == 1)
 {
-//    mixin(PackStr!());
+    template opDispatch(string s)
+    {
+	mixin("alias opDispatch = PartialApply!(." ~ s ~ ", " ~ argIndex.stringof ~ ", T);");
+    }
+    @disable this();
 }
 
 
@@ -179,7 +161,14 @@ unittest
 /**
  * Returns a single argument $(D T) template that checks for length $(D len)
  */
-alias hasLength(size_t len) = PartialApply!(.hasLength, 0, len);
+//alias hasLength(size_t len) = PartialApply!(.hasLength, 0, len);
+template hasLength(size_t len)
+{
+    template hasLength(T ...)
+    {
+        enum hasLength = .hasLength!(len,T[0]);
+    }
+}
 ///
 unittest
 {
@@ -232,35 +221,33 @@ template Index(P, size_t i)
 
 template Index(size_t i)
 {
-    template _Index(P)
+    template Index(P)
 	if(isPack!P)
     {
-	alias _Index = Index!(P, i);
+	alias Index = .Index!(P, i);
     }
-    alias Index = _Index;
 }
 
 template Index(P)
     if(isPack!P)
 {
-    template _Index(size_t n)
+    template Index(size_t n)
     {
-	alias _Index = Index!(P, n);
+	alias Index = .Index!(P, n);
     }
-    alias Index = _Index;
 }
 
 template Chain(T ...)
     if(All!(isPack, Pack!T))
 {
-//    alias Chain = Map!(Unpack, Pack!T);
-    alias Chain = Alias!(Pack!T).Map!(Unpack);
+    alias Chain = Map!(Unpack, Pack!T);
 }
 
 unittest
 {
-    pragma(msg, Chain!(Pack!(1,2,3), Pack!(4,5,6)));
+//    pragma(msg, Chain!(Pack!(1,2,3), Pack!(4,5,6)));
     static assert(is(Chain!(Pack!(1,2,3), Pack!(4,5,6)) == Pack!(1,2,3,4,5,6)));
+//    pragma(msg, Chain!(Pack!(1,2,3), Pack!()));
     static assert(is(Chain!(Pack!(1,2,3), Pack!()) == Pack!(1,2,3)));
 }
 
@@ -711,7 +698,7 @@ template FrontTransversal(PoP)
 
 template Indexed(Source, Indices)
     if(isPack!Source && isPack!Indices)
-//should check if indexes are valid type
+//should check if indices are valid type
 {
     alias Indexed = Map!(Index!Source, Indices);
 }
