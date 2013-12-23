@@ -157,18 +157,7 @@ unittest
     static assert(hasLength!(2, Pack!(0,1)));
 }
 
-
-/**
- * Returns a single argument $(D T) template that checks for length $(D len)
- */
-//alias hasLength(size_t len) = PartialApply!(.hasLength, 0, len);
-template hasLength(size_t len)
-{
-    template hasLength(T ...)
-    {
-        enum hasLength = .hasLength!(len,T[0]);
-    }
-}
+alias hasLength(size_t len) = PartialApply!(.hasLength, 0, len);
 ///
 unittest
 {
@@ -187,31 +176,12 @@ template Slice(P, size_t i0, size_t i1)
     alias Slice = Pack!(P.Unpack[i0 .. i1]);
 }
 
-template Slice(P, size_t i0)
-    if(isPack!P)
-{
-    alias Slice = Pack!(P.Unpack[i0 .. $]);
-}
+alias Slice(P, size_t i0) = .Slice!(P, i0, P.length);
 
-template Slice(size_t i0, size_t i1)
-{
-    template _Slice(P)
-	if(isPack!P)
-    {
-	alias _Slice = Slice!(P, i0, i1);
-    }
-    alias Slice = _Slice;
-}
+alias Slice(size_t i0, size_t i1) = PartialApply!(.Slice, 1, i0, i1);
 
-template Slice(size_t i0)
-{
-    template _Slice(P)
-	if(isPack!P)
-    {
-	alias _Slice = Slice!(P, i0, P.length);
-    }
-    alias Slice = _Slice;
-}
+alias Slice(size_t i0) = PartialApply!(.Slice, 1, i0);
+
 
 template Index(P, size_t i)
     if(isPack!P)
@@ -219,23 +189,10 @@ template Index(P, size_t i)
     alias Index = Alias!(P.Unpack[i]);
 }
 
-template Index(size_t i)
-{
-    template Index(P)
-	if(isPack!P)
-    {
-	alias Index = .Index!(P, i);
-    }
-}
+alias Index(size_t i) = PartialApply!(.Index, 1, i);
 
-template Index(P)
-    if(isPack!P)
-{
-    template Index(size_t n)
-    {
-	alias Index = .Index!(P, n);
-    }
-}
+alias Index(P) = PartialApply!(.Index, 0, P);
+
 
 template Chain(T ...)
     if(All!(isPack, Pack!T))
@@ -719,23 +676,26 @@ template Chunks(Source, size_t chunkSize)
     }
 }
 
-template Appender(T)
+template Append(Q, T)
+    if(isPack!Q)
 {
-    template Appender(Q)
-	if(isPack!T)
-    {
-        alias Appender = Pack!(Q.Unpack, T);
-    }
+    alias Append = Pack!(Q.Unpack, T);
 }
 
-template Prepender(T)
+alias Append(T) = PartialApply!(.Append, 1, T);
+
+alias AppendTo(Q) = PartialApply!(.Append, 0, Q);
+
+template Prepend(Q, T)
+    if(isPack!T)
 {
-    template Prepender(Q)
-	if(isPack!T)
-    {
-        alias Prepender = Pack!(T, Q.Unpack);
-    }
+    alias Prepend = Pack!(T, Q.Unpack);
 }
+
+alias Prepend(T) = PartialApply!(.Prepend, 1, T);
+
+alias PrependTo(Q) = PartialApply!(.Prepend, 0, Q);
+
 
 template Concat(A, B)
     if(isPack!A && isPack!B)

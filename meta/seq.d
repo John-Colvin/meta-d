@@ -39,15 +39,15 @@ unittest
 }
 
 /**
- * The identity operation on $(D Seqs). If only one symbol is passed then
- * the result is just that value. Otherwise it is a $(D Seq) of the passed
- * values.
+ * The identity operation on a template argument list. If only one symbol is 
+ * passed then the result is just that value. Otherwise it is a $(D Seq) of 
+ * the passed values.
  */
 template I(A ...)
 {
     static if(A.length == 1)
     {   //can't alias everything...
-	alias I = A[0];
+	alias I = Alias!(A[0]);
     }
     else
     {
@@ -79,13 +79,7 @@ template hasType(alias A, T)
  * Results in a template that checks for a match with type $(D T)
  * when passed the single argument $(D A)
  */
-template hasType(T)
-{
-    template hasType(alias A)
-    {
-	enum hasType = .hasType!(A, T);
-    }
-}
+alias hasType(T) = PartialApply!(.hasType, 1, T);
 
 /**
  * Template wrapper for $(D is(typeof(A) : T))
