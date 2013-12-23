@@ -194,8 +194,7 @@ template PartialApply(alias T, uint argLoc, Arg ...)
 {
     template PartialApply(L ...)
     {
-	mixin("import " ~ moduleName!T ~ ";"); //grab T's module
-	mixin("alias PartialApply = " ~ fullyQualifiedName!T ~ "!(L[0 .. argLoc], Arg, L[argLoc .. $]);");
+	alias PartialApply = T!(L[0 .. argLoc], Arg, L[argLoc .. $]);
     }
 }
 
@@ -234,7 +233,6 @@ unittest
 template Compose(F ...)
     if(F.length > 2)
 {
-//    pragma(msg, Pack!F);
     alias Compose = Compose!(F[0 .. $-2], Compose!(F[$-2 .. $]));
 }
 
@@ -360,4 +358,3 @@ template Select(alias Pred)
 	alias Select = .Select!(Pred, T);
     }
 }
-

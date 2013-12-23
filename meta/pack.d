@@ -5,49 +5,6 @@ import meta.seq;
 import meta.functional;
 import std.traits;
 
-private enum PackStr = q{
-/**
- * Confines a Seq within a struct. The result is simply a type: Access to the
- * underlying Seq is done using $(D Unpack).
- */
-struct Pack(T...)
-{
-    alias T Unpack;
-
-    enum length = T.length; //lowercase for familiarity
-
-    @disable this();
-
-    /**
-     * UFCS for Packs. Hooray!!
-     * takes care of all first argument functions
-     * only works with functions imported here.
-     */
-    //if there was such a thing as a compilation context default
-    //parameter we could import from / compile using, this would be fixed 
-    template opDispatch(string s)
-    {
-	template opDispatch(TL ...)
-	{
-	    mixin("alias opDispatch = " ~ s ~ "!(typeof(this), TL);");
-	}
-    }
-
-    template Map(alias F)
-    {
-	import meta.algorithm;
-        alias Map = meta.algorithm.Map!(F, typeof(this)); //Bug to require prefix
-    }
-
-    template Filter(alias F)
-    {
-	import meta.algorithm;
-	alias Filter = meta.algorithm.Filter!(F, typeof(this));
-    }
-}
-}; //end of PackStr
-
-mixin(PackStr);
 
 /**
  * A mixin template to inject the definition of Pack in to a scope. Using this
@@ -56,8 +13,57 @@ mixin(PackStr);
  */
 mixin template PackDef()
 {
-    mixin(PackStr);
+/**
+ * Confines a Seq within a struct. The result is simply a type: Access to the
+ * underlying Seq is done using $(D Unpack).
+ */
+struct Pack(T...)
+{
+    alias Unpack = T;
+
+    enum length = T.length; //lowercase for familiarity
+
+    @disable this();
+
+    //doesn't really work properly with indexing.
+    //often the indexing never actually happens, unittests break
+    //and pragma msgs show Pack!(blah)[0]
+    alias Unpack this;
+
+    /**
+     * UFCS for Packs. Hooray!!
+     * takes care of all first argument functions
+     * only works with functions imported here.
+     */
+    //if there was such a thing as a compilation context default
+    //parameter we could import from / compile using, this would be better
+    template opDispatch(string s)
+    {/+
+	template opDispatch(TL ...)
+	{
+	    mixin("alias opDispatch = " ~ s ~ "!(typeof(this), TL);");
+	}+/
+	mixin("alias opDispatch = PartialApply!(." ~ s ~ ", 0, typeof(this));");
+    }
+} //end of Pack struct
 }
+
+//adds Pack to the current scope
+mixin PackDef!();
+
+/**
+ * asArg moves it's 
+ */
+struct asArg(size_t argIndex, T ...)
+    if(T.length == 1)
+{
+    template opDispatch(string s)
+    {
+	mixin("alias opDispatch = PartialApply!(." ~ s ~ ", " ~ argIndex.stringof ~ ", T);");
+    }
+    @disable this();
+}
+
 
 /**
  * Results in the length of any compile-time entity that defines the field
@@ -155,7 +161,14 @@ unittest
 /**
  * Returns a single argument $(D T) template that checks for length $(D len)
  */
-alias hasLength(size_t len) = PartialApply!(.hasLength, 0, len);
+//alias hasLength(size_t len) = PartialApply!(.hasLength, 0, len);
+template hasLength(size_t len)
+{
+    template hasLength(T ...)
+    {
+        enum hasLength = .hasLength!(len,T[0]);
+    }
+}
 ///
 unittest
 {
@@ -208,35 +221,33 @@ template Index(P, size_t i)
 
 template Index(size_t i)
 {
-    template _Index(P)
+    template Index(P)
 	if(isPack!P)
     {
-	alias _Index = Index!(P, i);
+	alias Index = .Index!(P, i);
     }
-    alias Index = _Index;
 }
 
 template Index(P)
     if(isPack!P)
 {
-    template _Index(size_t n)
+    template Index(size_t n)
     {
-	alias _Index = Index!(P, n);
+	alias Index = .Index!(P, n);
     }
-    alias Index = _Index;
 }
 
 template Chain(T ...)
     if(All!(isPack, Pack!T))
 {
-//    alias Chain = Map!(Unpack, Pack!T);
-    alias Chain = Alias!(Pack!T).Map!(Unpack);
+    alias Chain = Map!(Unpack, Pack!T);
 }
 
 unittest
 {
-    //pragma(msg, Chain!(Pack!(1,2,3), Pack!(4,5,6)));
+//    pragma(msg, Chain!(Pack!(1,2,3), Pack!(4,5,6)));
     static assert(is(Chain!(Pack!(1,2,3), Pack!(4,5,6)) == Pack!(1,2,3,4,5,6)));
+//    pragma(msg, Chain!(Pack!(1,2,3), Pack!()));
     static assert(is(Chain!(Pack!(1,2,3), Pack!()) == Pack!(1,2,3)));
 }
 
@@ -687,7 +698,7 @@ template FrontTransversal(PoP)
 
 template Indexed(Source, Indices)
     if(isPack!Source && isPack!Indices)
-//should check if indexes are valid type
+//should check if indices are valid type
 {
     alias Indexed = Map!(Index!Source, Indices);
 }
